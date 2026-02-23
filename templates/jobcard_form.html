@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Jobcard - {{ user.username }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .jobcard-container {
+        background-color: #fcf4bd;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .signature-pad-wrapper canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+    .formset-row {
+        background-color: #fff;
+        border-bottom: 1px solid #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="jobcard-container">
+            <h3 class="text-center mb-4">Job Card</h3>
+
+            <form method="post" id="jobcardForm" enctype="multipart/form-data"
+                  {% if jobcard.pk %}data-autosave-url="{% url 'jobcard_autosave' jobcard.pk %}"{% endif %}>
+                {% csrf_token %}
+
+                {% crispy form %}
+
+                <hr>
+
+                <h5 class="mt-4">Job Details / Parts Used</h5>
+                {{ items.management_form }}
+
+                <div class="table-responsive">
+                    <table class="table table-bordered bg-white" id="items-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40%">Description</th>
+                                <th style="width: 30%">Parts Used</th>
+                                <th style="width: 10%">Qty</th>
+                                <th style="width: 15%">Person Helped</th>
+                                <th style="width: 5%">Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="formset-body">
+                            {% for form in items %}
+                                <tr class="formset-row">
+                                    {{ form.id }}
+                                    <td>{{ form.description|as_crispy_field }}</td>
+                                    <td>{{ form.parts_used|as_crispy_field }}</td>
+                                    <td>{{ form.qty|as_crispy_field }}</td>
+                                    <td>{{ form.person_helped|as_crispy_field }}</td>
+                                    <td class="text-center align-middle">
+                                        {% if items.can_delete %}
+                                            {{ form.DELETE }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm mb-3" id="add-item-btn">Add Row</button>
+
+                <div class="d-grid gap-2 mt-4 d-md-flex justify-content-md-end">
+                     <button type="submit" name="action" value="draft" class="btn btn-primary me-md-2" id="btn-save-draft">Save Draft</button>
+                    <button type="submit" name="action" value="submit" class="btn btn-success" id="btn-submit-final" onclick="return confirm('Are you sure you want to submit? This will lock the jobcard and email the client.');">Submit Jobcard</button>
+                </div>
+                <div id="autosave-status" class="text-muted text-end mt-1 small"></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- Time Tracking ---
+    function setDateTime(fieldId) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById(fieldId).value = now.toISOString().slice(0, 16);
+        triggerAutosave();
+    }
+
+    // --- Signature Pads ---
+    function initPad(canvasId, dataFieldId) {
+        const canvas = document.getElementById(canvasId);
+        if(!canvas) return null;
+
+        function resizeCanvas() {
+            const ratio =  Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+
+        const pad = new SignaturePad(canvas);
+        const hiddenInput = document.getElementById(dataFieldId);
+
+        pad.addEventListener("endStroke", () => {
+             if (hiddenInput) hiddenInput.value = pad.toDataURL();
+        });
+
+        return pad;
+    }
+
+    const techPad = initPad('tech_sig_pad', 'id_tech_signature_data');
+    const clientPad = initPad('client_sig_pad', 'id_client_signature_data');
+
+    // Also manager pad if present (though this template is for tech mostly)
+    const managerPad = initPad('manager_sig_pad', 'id_manager_signature_data');
+
+    function clearPad(canvasId) {
+        if(canvasId === 'tech_sig_pad' && techPad) techPad.clear();
+        if(canvasId === 'client_sig_pad' && clientPad) clientPad.clear();
+        if(canvasId === 'manager_sig_pad' && managerPad) managerPad.clear();
+
+        // Clear hidden input
+        if(canvasId === 'tech_sig_pad') document.getElementById('id_tech_signature_data').value = '';
+        if(canvasId === 'client_sig_pad') document.getElementById('id_client_signature_data').value = '';
+    }
+
+    // --- Form Submission ---
+    document.getElementById('jobcardForm').addEventListener('submit', function(e) {
+        // Ensure pads are synced to hidden fields before submit
+        if (techPad && !techPad.isEmpty()) {
+            document.getElementById('id_tech_signature_data').value = techPad.toDataURL();
+        }
+        if (clientPad && !clientPad.isEmpty()) {
+            document.getElementById('id_client_signature_data').value = clientPad.toDataURL();
+        }
+    });
+
+    // --- Dynamic Formset ---
+    document.getElementById('add-item-btn').addEventListener('click', function() {
+        const formIdx = document.getElementById('id_items-TOTAL_FORMS').value;
+        const formTable = document.getElementById('formset-body');
+        const emptyRow = formTable.rows[0].cloneNode(true);
+
+        const regex = new RegExp(`items-(\\d+)-`, 'g');
+        emptyRow.innerHTML = emptyRow.innerHTML.replace(regex, `items-${formIdx}-`);
+
+        const inputs = emptyRow.querySelectorAll('input');
+        inputs.forEach(input => {
+            if(input.type !== 'hidden' && input.type !== 'checkbox') input.value = '';
+            if(input.type === 'checkbox') input.checked = false;
+        });
+
+        formTable.appendChild(emptyRow);
+        document.getElementById('id_items-TOTAL_FORMS').value = parseInt(formIdx) + 1;
+    });
+
+    // --- Auto-Save ---
+    const form = document.getElementById('jobcardForm');
+    const autosaveUrl = form.getAttribute('data-autosave-url');
+    let autosaveTimer;
+
+    function triggerAutosave() {
+        if (!autosaveUrl) return;
+
+        clearTimeout(autosaveTimer);
+        document.getElementById('autosave-status').innerText = "Saving...";
+
+        autosaveTimer = setTimeout(() => {
+            const formData = new FormData(form);
+            // Append signatures
+            if (techPad && !techPad.isEmpty()) formData.set('tech_signature_data', techPad.toDataURL());
+            if (clientPad && !clientPad.isEmpty()) formData.set('client_signature_data', clientPad.toDataURL());
+
+            fetch(autosaveUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('autosave-status').innerText = "Saved " + new Date().toLocaleTimeString();
+                } else {
+                    document.getElementById('autosave-status').innerText = "Error saving";
+                }
+            })
+            .catch(error => {
+                console.error('Autosave error:', error);
+                document.getElementById('autosave-status').innerText = "Error saving";
+            });
+        }, 2000); // 2 seconds debounce
+    }
+
+    if (autosaveUrl) {
+        form.addEventListener('input', function(e) {
+            // Don't autosave on hidden fields change unless explicitly triggered
+             if (e.target.type !== 'hidden') {
+                triggerAutosave();
+             }
+        });
+    }
+</script>
+{% endblock %}

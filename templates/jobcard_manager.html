@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Manager Review - {{ jobcard.jobcard_number }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow">
+            <div class="card-header bg-warning">
+                <h4>Review Jobcard: {{ jobcard.jobcard_number }}</h4>
+            </div>
+            <div class="card-body">
+                <!-- Jobcard Details (Read Only) -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Company:</strong> {{ jobcard.company.name }}</p>
+                        <p><strong>Technician:</strong> {{ jobcard.technician.get_full_name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Start:</strong> {{ jobcard.time_start }}</p>
+                        <p><strong>Stop:</strong> {{ jobcard.time_stop }}</p>
+                    </div>
+                </div>
+
+                <h5>Items</h5>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr><th>Description</th><th>Parts</th><th>Qty</th><th>Person Helped</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in jobcard.items.all %}
+                        <tr>
+                            <td>{{ item.description }}</td>
+                            <td>{{ item.parts_used }}</td>
+                            <td>{{ item.qty }}</td>
+                            <td>{{ item.person_helped }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="row mb-3">
+                     <div class="col-md-6">
+                        <strong>Tech Signature:</strong><br>
+                        {% if jobcard.tech_signature %}
+                            <img src="{{ jobcard.tech_signature.url }}" width="150" class="border">
+                        {% else %}
+                            <span class="text-danger">Missing</span>
+                        {% endif %}
+                     </div>
+                     <div class="col-md-6">
+                        <strong>Client Signature:</strong><br>
+                        {% if jobcard.client_signature %}
+                            <img src="{{ jobcard.client_signature.url }}" width="150" class="border">
+                        {% else %}
+                             <span class="text-danger">Missing</span>
+                        {% endif %}
+                     </div>
+                </div>
+
+                <hr>
+
+                <!-- Manager Action Form -->
+                <h5>Manager Approval</h5>
+                {% crispy form %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize Manager Pad
+    const canvas = document.getElementById('manager_sig_pad');
+    let managerPad = null;
+
+    if (canvas) {
+        function resizeCanvas() {
+            const ratio =  Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext("2d").scale(ratio, ratio);
+        }
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+        managerPad = new SignaturePad(canvas);
+    }
+
+    function clearPad(id) {
+        if(managerPad) managerPad.clear();
+    }
+
+    // We need to attach the submit listener to the form rendered by crispy
+    // Crispy form usually has no ID unless specified.
+    // ManagerActionForm helper does not specify form_id.
+    // But it's the only form in this block (or the main one).
+    // Let's add an ID to the form in forms.py or select by 'form' tag.
+
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (managerPad && !managerPad.isEmpty()) {
+                const hiddenInput = document.getElementById('id_manager_signature_data');
+                if (hiddenInput) {
+                    hiddenInput.value = managerPad.toDataURL();
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
