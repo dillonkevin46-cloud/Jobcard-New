@@ -54,6 +54,30 @@ class GlobalSettings(models.Model):
     def __str__(self):
         return "Global Settings"
 
+class PDFTemplateElement(models.Model):
+    ELEMENT_CHOICES = [
+        ('logo', 'Company Logo'),
+        ('company_info', 'Company Info (Name/Address)'),
+        ('jobcard_details', 'Jobcard # & Date'),
+        ('client_details', 'Client Name'),
+        ('technician_details', 'Technician Name'),
+        ('times', 'Start/Stop Times'),
+        ('items_table', 'Items Table'),
+        ('manager_notes', 'Manager Notes'),
+        ('admin_notes', 'Admin Notes'),
+        ('signatures', 'Signatures Block'),
+    ]
+
+    element_name = models.CharField(max_length=50, choices=ELEMENT_CHOICES, unique=True)
+    pos_x = models.FloatField(default=0.0) # In Points (1/72 inch)
+    pos_y = models.FloatField(default=0.0) # In Points (Web Top-Left logic, need conversion for PDF)
+    width = models.FloatField(default=100.0)
+    height = models.FloatField(default=50.0)
+    font_size = models.IntegerField(default=10)
+
+    def __str__(self):
+        return self.get_element_name_display()
+
 class Jobcard(models.Model):
     class Status(models.TextChoices):
         DRAFT = 'DRAFT', 'Draft'

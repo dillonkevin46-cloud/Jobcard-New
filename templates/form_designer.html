@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% block title %}PDF Form Designer{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        margin: 0;
+        overflow-x: hidden;
+    }
+    #designer-wrapper {
+        display: flex;
+        justify-content: center;
+        background-color: #555;
+        padding: 40px;
+        min-height: calc(100vh - 56px); /* Adjust for navbar */
+    }
+
+    #page-canvas {
+        /* A4 Size in Points: 595.27 x 841.89 */
+        width: 595.27px;
+        height: 841.89px;
+        background-color: white;
+        position: relative;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        /* Grid Pattern */
+        background-image: linear-gradient(#eee .1em, transparent .1em), linear-gradient(90deg, #eee .1em, transparent .1em);
+        background-size: 20px 20px;
+        overflow: hidden; /* Ensure elements don't spill out visually */
+    }
+
+    .draggable-element {
+        position: absolute;
+        box-sizing: border-box; /* Include border in width/height */
+        border: 1px solid #007bff;
+        background-color: rgba(0, 123, 255, 0.1);
+        cursor: grab;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: #007bff;
+        user-select: none;
+        touch-action: none; /* Required for Interact.js */
+        text-align: center;
+        z-index: 10;
+    }
+
+    .draggable-element:active {
+        cursor: grabbing;
+    }
+
+    .draggable-element:hover {
+        background-color: rgba(0, 123, 255, 0.2);
+        z-index: 100;
+        outline: 1px dashed #0056b3;
+    }
+
+    #controls-panel {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        width: 220px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+    }
+</style>
+<!-- Interact.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="controls-panel">
+    <h5>Designer Controls</h5>
+    <p class="small text-muted">
+        Drag elements to position.<br>
+        Drag edges to resize.
+    </p>
+    <button id="save-layout-btn" class="btn btn-primary w-100">Save Layout</button>
+    <div id="save-status" class="mt-3 text-center fw-bold"></div>
+    <hr>
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary btn-sm w-100">Back to Dashboard</a>
+</div>
+
+<div id="designer-wrapper">
+    <div id="page-canvas">
+        {% for element in elements %}
+        <div class="draggable-element"
+             id="el-{{ element.element_name }}"
+             data-name="{{ element.element_name }}"
+             style="transform: translate({{ element.pos_x }}px, {{ element.pos_y }}px); width: {{ element.width }}px; height: {{ element.height }}px;"
+             data-x="{{ element.pos_x }}"
+             data-y="{{ element.pos_y }}">
+            {{ element.get_element_name_display }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- Interact.js Logic ---
+
+    interact('.draggable-element')
+    .draggable({
+        // enable inertial throwing
+        inertia: true,
+        // keep the element within the area of it's parent
+        modifiers: [
+            interact.modifiers.restrictRect({
+                restriction: 'parent',
+                endOnly: true
+            })
+        ],
+        // enable autoScroll
+        autoScroll: true,
+
+        listeners: {
+            move: dragMoveListener,
+        }
+    })
+    .resizable({
+        // resize from all edges and corners
+        edges: { left: true, right: true, bottom: true, top: true },
+
+        listeners: {
+            move: function (event) {
+                var target = event.target
+                var x = (parseFloat(target.getAttribute('data-x')) || 0)
+                var y = (parseFloat(target.getAttribute('data-y')) || 0)
+
+                // update the element's style
+                target.style.width = event.rect.width + 'px'
+                target.style.height = event.rect.height + 'px'
+
+                // translate when resizing from top or left edges
+                x += event.deltaRect.left
+                y += event.deltaRect.top
+
+                target.style.transform = 'translate(' + x + 'px, ' + y + 'px)'
+
+                target.setAttribute('data-x', x)
+                target.setAttribute('data-y', y)
+            }
+        },
+        modifiers: [
+            // keep the edges inside the parent
+            interact.modifiers.restrictEdges({
+                outer: 'parent'
+            }),
+            // minimum size
+            interact.modifiers.restrictSize({
+                min: { width: 50, height: 30 }
+            })
+        ],
+        inertia: true
+    });
+
+    function dragMoveListener (event) {
+        var target = event.target
+        // keep the dragged position in the data-x/data-y attributes
+        var x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx
+        var y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy
+
+        // translate the element
+        target.style.transform = 'translate(' + x + 'px, ' + y + 'px)'
+
+        // update the posiion attributes
+        target.setAttribute('data-x', x)
+        target.setAttribute('data-y', y)
+    }
+
+    // --- Save Logic ---
+    const saveBtn = document.getElementById('save-layout-btn');
+    const statusDiv = document.getElementById('save-status');
+
+    saveBtn.addEventListener('click', function() {
+        // Collect data
+        const elements = document.querySelectorAll('.draggable-element');
+        const payload = [];
+
+        elements.forEach(el => {
+            // Get transform coordinates
+            const x = parseFloat(el.getAttribute('data-x'));
+            const y = parseFloat(el.getAttribute('data-y'));
+            // Get computed width/height
+            const rect = el.getBoundingClientRect();
+            // We want the style width/height (relative to container scale if any, but here 1:1)
+            // or simply use offsetWidth/offsetHeight if no scaling on container
+            // The style.width/height is explicitly set by interact.js
+            const width = parseFloat(el.style.width);
+            const height = parseFloat(el.style.height);
+
+            payload.push({
+                name: el.getAttribute('data-name'),
+                x: x,
+                y: y,
+                width: width,
+                height: height
+            });
+        });
+
+        // UI Feedback
+        saveBtn.disabled = true;
+        saveBtn.innerText = "Saving...";
+        statusDiv.innerText = "";
+
+        // POST Request
+        fetch("{% url 'save_template_layout' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ elements: payload })
+        })
+        .then(response => response.json())
+        .then(data => {
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Save Layout";
+
+            if (data.status === 'success') {
+                statusDiv.innerText = "Saved Successfully!";
+                statusDiv.className = "mt-3 text-center fw-bold text-success";
+                setTimeout(() => statusDiv.innerText = "", 3000);
+            } else {
+                statusDiv.innerText = "Error: " + data.message;
+                statusDiv.className = "mt-3 text-center fw-bold text-danger";
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Save Layout";
+            statusDiv.innerText = "Network/Server Error";
+            statusDiv.className = "mt-3 text-center fw-bold text-danger";
+        });
+    });
+</script>
+{% endblock %}
