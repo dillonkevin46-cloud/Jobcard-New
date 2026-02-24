@@ -154,8 +154,10 @@
 
         const inputs = emptyRow.querySelectorAll('input');
         inputs.forEach(input => {
-            if(input.type !== 'hidden' && input.type !== 'checkbox') input.value = '';
+            if(input.type !== 'checkbox') input.value = '';
             if(input.type === 'checkbox') input.checked = false;
+            // Clear ID if it was cloned (critical for new rows to be INSERTs not UPDATEs)
+            if(input.name.endsWith('-id')) input.value = '';
         });
 
         formTable.appendChild(emptyRow);

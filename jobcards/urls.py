@@ -3,7 +3,8 @@ from django.contrib.auth.views import LogoutView
 from .views import (
     CustomLoginView, DashboardView, JobcardCreateView, JobcardUpdateView,
     ManagerJobcardView, AdminJobcardView, UserListView, UserCreateView,
-    CompanyCreateView, SettingsView, JobcardPDFView, JobcardAutosaveView
+    CompanyCreateView, SettingsView, JobcardPDFView, JobcardAutosaveView,
+    FormDesignerView, SaveTemplateLayoutView
 )
 
 urlpatterns = [
@@ -20,4 +21,6 @@ urlpatterns = [
     path('admin/company/create/', CompanyCreateView.as_view(), name='company_create'),
     path('settings/', SettingsView.as_view(), name='settings'),
     path('pdf/<int:pk>/', JobcardPDFView.as_view(), name='jobcard_pdf'),
+    path('manager/designer/', FormDesignerView.as_view(), name='form_designer'),
+    path('manager/designer/save/', SaveTemplateLayoutView.as_view(), name='save_template_layout'),
 ]

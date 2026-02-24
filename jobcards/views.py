@@ -1,11 +1,12 @@
 import base64
 import uuid
 import io
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import TemplateView, CreateView, UpdateView, ListView, View
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse_lazy
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.http import HttpResponse, JsonResponse
@@ -14,18 +15,18 @@ from django.db.models import Q
 from django.conf import settings
 from django.core.mail import EmailMessage
 
+# ReportLab imports (Canvas)
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch, mm
 
-from .models import User, Jobcard, JobcardItem, Company, GlobalSettings
+from .models import User, Jobcard, JobcardItem, Company, GlobalSettings, PDFTemplateElement
 from .forms import (
     UserLoginForm, CustomUserCreationForm, CompanyForm, GlobalSettingsForm,
     JobcardForm, JobcardItemFormSet, ManagerActionForm, AdminActionForm
 )
 
+# --- Helper Functions ---
 def save_signature_image(base64_data):
     if not base64_data:
         return None
@@ -40,82 +41,215 @@ def save_signature_image(base64_data):
         print(f"Error saving signature: {e}")
         return None
 
-def generate_pdf_buffer(jobcard):
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
-
-    # Header
-    settings_obj = GlobalSettings.objects.first()
-    if settings_obj and settings_obj.company_logo:
-        try:
-            logo_path = settings_obj.company_logo.path
-            im = Image(logo_path, width=100, height=50)
-            elements.append(im)
-        except Exception:
-            pass
-
-    if settings_obj:
-            elements.append(Paragraph(settings_obj.company_name, styles['Title']))
-            elements.append(Paragraph(settings_obj.company_address, styles['Normal']))
-            elements.append(Spacer(1, 12))
-
-    elements.append(Paragraph(f"Jobcard: {jobcard.jobcard_number}", styles['Heading2']))
-    elements.append(Paragraph(f"Company: {jobcard.company.name}", styles['Normal']))
-    elements.append(Paragraph(f"Technician: {jobcard.technician.get_full_name() if jobcard.technician else 'N/A'}", styles['Normal']))
-    elements.append(Paragraph(f"Date: {jobcard.created_at.strftime('%Y-%m-%d')}", styles['Normal']))
-    elements.append(Spacer(1, 12))
-
-    # Items Table
-    data = [['Description', 'Parts', 'Qty', 'Person Helped']]
-    for item in jobcard.items.all():
-        data.append([item.description, item.parts_used, str(item.qty), item.person_helped])
-
-    t = Table(data)
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-    ]))
-    elements.append(t)
-    elements.append(Spacer(1, 24))
-
-    # Signatures
-    sig_data = [['Technician', 'Client', 'Manager']]
-
-    def get_sig_img(sig_field):
-        if sig_field:
-            try:
-                return Image(sig_field.path, width=100, height=50)
-            except:
-                return "Error loading image"
-        return "Not Signed"
-
-    sig_row = [
-        get_sig_img(jobcard.tech_signature),
-        get_sig_img(jobcard.client_signature),
-        get_sig_img(jobcard.manager_signature)
+def setup_default_template_elements():
+    """Initializes default PDF template elements if none exist."""
+    defaults = [
+        {'element_name': 'logo', 'pos_x': 40, 'pos_y': 40, 'width': 120, 'height': 60, 'font_size': 0},
+        {'element_name': 'company_info', 'pos_x': 200, 'pos_y': 40, 'width': 350, 'height': 60, 'font_size': 12},
+        {'element_name': 'jobcard_details', 'pos_x': 400, 'pos_y': 110, 'width': 150, 'height': 50, 'font_size': 10},
+        {'element_name': 'technician_details', 'pos_x': 40, 'pos_y': 110, 'width': 200, 'height': 40, 'font_size': 10},
+        {'element_name': 'client_details', 'pos_x': 40, 'pos_y': 150, 'width': 200, 'height': 40, 'font_size': 10},
+        {'element_name': 'times', 'pos_x': 300, 'pos_y': 150, 'width': 250, 'height': 40, 'font_size': 10},
+        {'element_name': 'items_table', 'pos_x': 40, 'pos_y': 210, 'width': 515, 'height': 300, 'font_size': 10},
+        {'element_name': 'manager_notes', 'pos_x': 40, 'pos_y': 530, 'width': 515, 'height': 60, 'font_size': 10},
+        {'element_name': 'admin_notes', 'pos_x': 40, 'pos_y': 600, 'width': 515, 'height': 60, 'font_size': 10},
+        {'element_name': 'signatures', 'pos_x': 40, 'pos_y': 680, 'width': 515, 'height': 100, 'font_size': 10},
     ]
-    sig_data.append(sig_row)
 
-    sig_data.append([jobcard.tech_name, jobcard.client_name, jobcard.manager_name])
+    if not PDFTemplateElement.objects.exists():
+        for d in defaults:
+            PDFTemplateElement.objects.create(**d)
 
-    sig_table = Table(sig_data)
-    sig_table.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('GRID', (0,0), (-1,-1), 1, colors.black),
-    ]))
-    elements.append(sig_table)
+def generate_pdf_buffer(jobcard):
+    """
+    Generates a PDF using reportlab.pdfgen.canvas and PDFTemplateElement coordinates.
+    """
+    setup_default_template_elements() # Ensure elements exist
+    elements = {e.element_name: e for e in PDFTemplateElement.objects.all()}
 
-    doc.build(elements)
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4 # 595.27, 841.89 points
+
+    # 1. Draw Border
+    p.setStrokeColorRGB(0, 0, 0)
+    p.setLineWidth(1)
+    p.rect(20, 20, width - 40, height - 40)
+
+    # Helper to convert Web Y (Top-Left) to ReportLab Y (Bottom-Left)
+    def get_rl_y(web_y, elem_height):
+        # Web Y is distance from top. RL Y is distance from bottom.
+        # However, the designer saves Top-Left coordinates.
+        # ReportLab drawString(x, y) uses Bottom-Left origin.
+        # So: RL_Y = PageHeight - Web_Y - ElementHeight (roughly, for top-aligned text)
+        # OR: RL_Y = PageHeight - Web_Y
+        return height - web_y
+
+    # --- GLOBAL SETTINGS ---
+    settings_obj = GlobalSettings.objects.first()
+
+    # --- LOGO ---
+    if 'logo' in elements:
+        el = elements['logo']
+        if settings_obj and settings_obj.company_logo:
+            try:
+                # drawImage(image, x, y, width, height)
+                # y is bottom-left of image
+                rl_y = height - el.pos_y - el.height
+                p.drawImage(settings_obj.company_logo.path, el.pos_x, rl_y, width=el.width, height=el.height, preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                print(f"Logo error: {e}")
+
+    # --- COMPANY INFO ---
+    if 'company_info' in elements:
+        el = elements['company_info']
+        rl_y = height - el.pos_y - el.font_size # Approximation for text baseline
+        p.setFont("Helvetica-Bold", el.font_size + 2)
+        p.drawString(el.pos_x, rl_y, settings_obj.company_name if settings_obj else "Company Name")
+
+        p.setFont("Helvetica", el.font_size)
+        lines = (settings_obj.company_address if settings_obj else "").split('\n')
+        for i, line in enumerate(lines):
+            p.drawString(el.pos_x, rl_y - ((i+1) * (el.font_size + 2)), line)
+
+    # --- JOBCARD DETAILS ---
+    if 'jobcard_details' in elements:
+        el = elements['jobcard_details']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, f"Jobcard No: {jobcard.jobcard_number}")
+        p.drawString(el.pos_x, rl_y - 12, f"Date: {jobcard.created_at.strftime('%Y-%m-%d')}")
+        p.drawString(el.pos_x, rl_y - 24, f"Status: {jobcard.get_status_display()}")
+        p.drawString(el.pos_x, rl_y - 36, f"Category: {jobcard.get_category_display()}")
+
+    # --- TECHNICIAN DETAILS ---
+    if 'technician_details' in elements:
+        el = elements['technician_details']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica", el.font_size)
+        tech_name = jobcard.technician.get_full_name() if jobcard.technician else 'N/A'
+        p.drawString(el.pos_x, rl_y, f"Technician: {tech_name}")
+
+    # --- CLIENT DETAILS ---
+    if 'client_details' in elements:
+        el = elements['client_details']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y, f"Client: {jobcard.company.name}")
+        p.drawString(el.pos_x, rl_y - 12, f"Address: {jobcard.company.address[:50]}") # Truncate
+
+    # --- TIMES ---
+    if 'times' in elements:
+        el = elements['times']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica", el.font_size)
+        start_str = jobcard.time_start.strftime('%Y-%m-%d %H:%M') if jobcard.time_start else '-'
+        stop_str = jobcard.time_stop.strftime('%Y-%m-%d %H:%M') if jobcard.time_stop else '-'
+        p.drawString(el.pos_x, rl_y, f"Start: {start_str}")
+        p.drawString(el.pos_x + 120, rl_y, f"Stop: {stop_str}") # Offset stop time
+
+    # --- ITEMS TABLE ---
+    if 'items_table' in elements:
+        el = elements['items_table']
+        rl_y = height - el.pos_y
+
+        # Draw Headers
+        p.setFont("Helvetica-Bold", el.font_size)
+        # Column widths: Description (40%), Parts (30%), Qty (10%), Person (20%)
+        col1_w = el.width * 0.4
+        col2_w = el.width * 0.3
+        col3_w = el.width * 0.1
+        col4_w = el.width * 0.2
+
+        row_h = el.font_size + 8
+        current_y = rl_y - row_h
+
+        # Header BG
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(el.pos_x, current_y, el.width, row_h, fill=1, stroke=1)
+        p.setFillColorRGB(0, 0, 0)
+
+        # Header Text
+        text_y = current_y + 5
+        p.drawString(el.pos_x + 5, text_y, "Description")
+        p.drawString(el.pos_x + col1_w + 5, text_y, "Parts Used")
+        p.drawString(el.pos_x + col1_w + col2_w + 5, text_y, "Qty")
+        p.drawString(el.pos_x + col1_w + col2_w + col3_w + 5, text_y, "Person Helped")
+
+        # Items
+        p.setFont("Helvetica", el.font_size)
+        for item in jobcard.items.all():
+            current_y -= row_h
+            if current_y < 40: # Page break safety (simple version: just stop drawing)
+                break
+
+            p.rect(el.pos_x, current_y, el.width, row_h, fill=0, stroke=1)
+            # Vertical lines
+            p.line(el.pos_x + col1_w, current_y, el.pos_x + col1_w, current_y + row_h)
+            p.line(el.pos_x + col1_w + col2_w, current_y, el.pos_x + col1_w + col2_w, current_y + row_h)
+            p.line(el.pos_x + col1_w + col2_w + col3_w, current_y, el.pos_x + col1_w + col2_w + col3_w, current_y + row_h)
+
+            text_y = current_y + 5
+            p.drawString(el.pos_x + 5, text_y, item.description[:40])
+            p.drawString(el.pos_x + col1_w + 5, text_y, item.parts_used[:30])
+            p.drawString(el.pos_x + col1_w + col2_w + 5, text_y, str(item.qty))
+            p.drawString(el.pos_x + col1_w + col2_w + col3_w + 5, text_y, item.person_helped[:20])
+
+    # --- MANAGER NOTES ---
+    if 'manager_notes' in elements and jobcard.manager_notes:
+        el = elements['manager_notes']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Manager Notes:")
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y - 12, jobcard.manager_notes[:200]) # Simple truncate
+
+    # --- ADMIN NOTES ---
+    if 'admin_notes' in elements and jobcard.admin_notes:
+        el = elements['admin_notes']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Admin Notes:")
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y - 12, jobcard.admin_notes[:200])
+
+    # --- SIGNATURES ---
+    if 'signatures' in elements:
+        el = elements['signatures']
+        rl_y = height - el.pos_y - el.height
+
+        # Draw box for signatures
+        # p.rect(el.pos_x, rl_y, el.width, el.height)
+
+        col_w = el.width / 3
+
+        # Tech Sig
+        p.drawString(el.pos_x + 5, rl_y + 5, f"Tech: {jobcard.tech_name}")
+        if jobcard.tech_signature:
+            try:
+                p.drawImage(jobcard.tech_signature.path, el.pos_x + 10, rl_y + 20, width=col_w-20, height=el.height-30, mask='auto', preserveAspectRatio=True)
+            except: pass
+
+        # Client Sig
+        p.drawString(el.pos_x + col_w + 5, rl_y + 5, f"Client: {jobcard.client_name}")
+        if jobcard.client_signature:
+             try:
+                p.drawImage(jobcard.client_signature.path, el.pos_x + col_w + 10, rl_y + 20, width=col_w-20, height=el.height-30, mask='auto', preserveAspectRatio=True)
+             except: pass
+
+        # Manager Sig
+        p.drawString(el.pos_x + (col_w*2) + 5, rl_y + 5, f"Manager: {jobcard.manager_name}")
+        if jobcard.manager_signature:
+             try:
+                p.drawImage(jobcard.manager_signature.path, el.pos_x + (col_w*2) + 10, rl_y + 20, width=col_w-20, height=el.height-30, mask='auto', preserveAspectRatio=True)
+             except: pass
+
+    p.showPage()
+    p.save()
     buffer.seek(0)
     return buffer
+
+# --- VIEWS ---
 
 class CustomLoginView(LoginView):
     authentication_form = UserLoginForm
@@ -285,11 +419,6 @@ class JobcardAutosaveView(LoginRequiredMixin, View):
         if jobcard.technician != request.user and not request.user.is_superuser:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
 
-        # Simple autosave for basic fields
-        # Note: Handling formsets via simple autosave is complex.
-        # We will focus on main fields: manager_notes, tech_name, etc.
-        # Ideally we use the form to validate.
-
         form = JobcardForm(request.POST, instance=jobcard, user=request.user)
         if form.is_valid():
             jobcard = form.save(commit=False)
@@ -305,7 +434,7 @@ class JobcardAutosaveView(LoginRequiredMixin, View):
             # Don't save status on autosave
             jobcard.save()
 
-            # Handle Formset Autosave
+             # Handle Formset Autosave
             items = JobcardItemFormSet(request.POST, instance=jobcard)
             if items.is_valid():
                 items.save()
@@ -402,8 +531,47 @@ class JobcardPDFView(LoginRequiredMixin, View):
     def get(self, request, pk):
         jobcard = get_object_or_404(Jobcard, pk=pk)
 
-        buffer = generate_pdf_buffer(jobcard)
+        try:
+            buffer = generate_pdf_buffer(jobcard)
+        except Exception as e:
+            return HttpResponse(f"Error generating PDF: {e}", status=500)
 
         response = HttpResponse(buffer, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{jobcard.jobcard_number}.pdf"'
         return response
+
+# --- FORM DESIGNER VIEWS ---
+
+class FormDesignerView(LoginRequiredMixin, UserPassesTestMixin, View):
+    template_name = 'form_designer.html'
+
+    def test_func(self):
+        return self.request.user.is_manager() or self.request.user.is_superuser
+
+    def get(self, request):
+        setup_default_template_elements()
+        elements = PDFTemplateElement.objects.all()
+        return render(request, self.template_name, {'elements': elements})
+
+class SaveTemplateLayoutView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.is_manager() or self.request.user.is_superuser
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            elements_data = data.get('elements', [])
+
+            for item in elements_data:
+                name = item.get('name')
+                if name:
+                    element, created = PDFTemplateElement.objects.get_or_create(element_name=name)
+                    element.pos_x = float(item.get('x', 0))
+                    element.pos_y = float(item.get('y', 0))
+                    element.width = float(item.get('width', 100))
+                    element.height = float(item.get('height', 50))
+                    element.save()
+
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
