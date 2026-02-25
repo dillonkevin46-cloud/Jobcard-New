@@ -234,6 +234,176 @@ def generate_pdf_buffer(jobcard):
     buffer.seek(0)
     return buffer
 
+def generate_dummy_pdf_buffer():
+    """
+    Generates a Dummy PDF for preview purposes using hardcoded data.
+    """
+    setup_default_template_elements() # Ensure elements exist
+    elements = {e.element_name: e for e in PDFTemplateElement.objects.all()}
+
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4 # 595.27, 841.89 points
+
+    # 1. Draw Border
+    p.setStrokeColorRGB(0, 0, 0)
+    p.setLineWidth(1)
+    p.rect(20, 20, width - 40, height - 40)
+
+    # --- GLOBAL SETTINGS (Dummy) ---
+    settings_obj = GlobalSettings.objects.first() # Still use real settings if available for logo
+
+    # --- LOGO ---
+    if 'header_logo' in elements:
+        el = elements['header_logo']
+        if settings_obj and settings_obj.company_logo:
+            try:
+                rl_y = height - el.pos_y - el.height
+                p.drawImage(settings_obj.company_logo.path, el.pos_x, rl_y, width=el.width, height=el.height, preserveAspectRatio=True, mask='auto')
+            except Exception as e:
+                print(f"Logo error: {e}")
+        else:
+             # Draw Placeholder Logo
+             rl_y = height - el.pos_y - el.height
+             p.rect(el.pos_x, rl_y, el.width, el.height)
+             p.drawString(el.pos_x + 10, rl_y + 20, "LOGO HERE")
+
+    # --- COMPANY INFO ---
+    if 'company_info' in elements:
+        el = elements['company_info']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size + 2)
+        p.drawString(el.pos_x, rl_y, settings_obj.company_name if settings_obj else "Your Company Name")
+
+        p.setFont("Helvetica", el.font_size)
+        dummy_address = settings_obj.company_address if settings_obj else "123 Business Rd\nCity, Country\nPh: 555-0199"
+        lines = dummy_address.split('\n')
+        for i, line in enumerate(lines):
+            p.drawString(el.pos_x, rl_y - ((i+1) * (el.font_size + 2)), line)
+
+    # --- JOBCARD META ---
+    if 'jobcard_meta' in elements:
+        el = elements['jobcard_meta']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Jobcard No: JC-PREVIEW-123")
+        p.drawString(el.pos_x, rl_y - 12, "Date: 2023-10-27")
+        p.drawString(el.pos_x, rl_y - 24, "Status: Approved")
+        p.drawString(el.pos_x, rl_y - 36, "Category: Call Out")
+        p.drawString(el.pos_x, rl_y - 48, "Tech: John Doe")
+
+    # --- CLIENT DETAILS ---
+    if 'client_details' in elements:
+        el = elements['client_details']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Client: Acme Corp")
+        p.drawString(el.pos_x, rl_y - 12, "Address: 456 Client Lane, Industrial Park")
+
+    # --- START/STOP TIMES ---
+    if 'start_stop_times' in elements:
+        el = elements['start_stop_times']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Start: 2023-10-27 09:00")
+        p.drawString(el.pos_x + 120, rl_y, "Stop: 2023-10-27 11:30")
+
+    # --- ITEMS TABLE ---
+    if 'items_table' in elements:
+        el = elements['items_table']
+        rl_y = height - el.pos_y
+
+        # Draw Headers
+        p.setFont("Helvetica-Bold", el.font_size)
+        col1_w = el.width * 0.4
+        col2_w = el.width * 0.3
+        col3_w = el.width * 0.1
+        col4_w = el.width * 0.2
+
+        row_h = el.font_size + 8
+        current_y = rl_y - row_h
+
+        # Header BG
+        p.setFillColorRGB(0.9, 0.9, 0.9)
+        p.rect(el.pos_x, current_y, el.width, row_h, fill=1, stroke=1)
+        p.setFillColorRGB(0, 0, 0)
+
+        # Header Text
+        text_y = current_y + 5
+        p.drawString(el.pos_x + 5, text_y, "Description")
+        p.drawString(el.pos_x + col1_w + 5, text_y, "Parts Used")
+        p.drawString(el.pos_x + col1_w + col2_w + 5, text_y, "Qty")
+        p.drawString(el.pos_x + col1_w + col2_w + col3_w + 5, text_y, "Person Helped")
+
+        # Dummy Items
+        p.setFont("Helvetica", el.font_size)
+        dummy_items = [
+            ("Diagnosed network issue", "Cat6 Cable", "10m", "Jane Smith"),
+            ("Replaced Switch", "24-Port Switch", "1", "Jane Smith"),
+            ("Configured VLANs", "-", "1", "IT Manager"),
+        ]
+
+        for item in dummy_items:
+            current_y -= row_h
+            if current_y < 40: break
+
+            p.rect(el.pos_x, current_y, el.width, row_h, fill=0, stroke=1)
+            # Vertical lines
+            p.line(el.pos_x + col1_w, current_y, el.pos_x + col1_w, current_y + row_h)
+            p.line(el.pos_x + col1_w + col2_w, current_y, el.pos_x + col1_w + col2_w, current_y + row_h)
+            p.line(el.pos_x + col1_w + col2_w + col3_w, current_y, el.pos_x + col1_w + col2_w + col3_w, current_y + row_h)
+
+            text_y = current_y + 5
+            p.drawString(el.pos_x + 5, text_y, item[0])
+            p.drawString(el.pos_x + col1_w + 5, text_y, item[1])
+            p.drawString(el.pos_x + col1_w + col2_w + 5, text_y, item[2])
+            p.drawString(el.pos_x + col1_w + col2_w + col3_w + 5, text_y, item[3])
+
+    # --- MANAGER NOTES ---
+    if 'manager_notes' in elements:
+        el = elements['manager_notes']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Manager Notes:")
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y - 12, "Approved. Good work.")
+
+    # --- ADMIN NOTES ---
+    if 'admin_notes' in elements:
+        el = elements['admin_notes']
+        rl_y = height - el.pos_y - el.font_size
+        p.setFont("Helvetica-Bold", el.font_size)
+        p.drawString(el.pos_x, rl_y, "Admin Notes:")
+        p.setFont("Helvetica", el.font_size)
+        p.drawString(el.pos_x, rl_y - 12, "Invoiced #INV-999")
+
+    # --- SIGNATURES ---
+    if 'signatures' in elements:
+        el = elements['signatures']
+        rl_y = height - el.pos_y - el.height
+
+        col_w = el.width / 3
+
+        # Tech Sig
+        p.drawString(el.pos_x + 5, rl_y + 5, "Tech: John Doe")
+        p.rect(el.pos_x + 10, rl_y + 20, col_w-20, el.height-30) # Box for sig
+        p.drawString(el.pos_x + 20, rl_y + 40, "[Signature]")
+
+        # Client Sig
+        p.drawString(el.pos_x + col_w + 5, rl_y + 5, "Client: Jane Smith")
+        p.rect(el.pos_x + col_w + 10, rl_y + 20, col_w-20, el.height-30)
+        p.drawString(el.pos_x + col_w + 20, rl_y + 40, "[Signature]")
+
+        # Manager Sig
+        p.drawString(el.pos_x + (col_w*2) + 5, rl_y + 5, "Manager: Boss Man")
+        p.rect(el.pos_x + (col_w*2) + 10, rl_y + 20, col_w-20, el.height-30)
+        p.drawString(el.pos_x + (col_w*2) + 20, rl_y + 40, "[Signature]")
+
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
+
 # --- VIEWS ---
 
 class CustomLoginView(LoginView):
@@ -560,3 +730,17 @@ class SaveTemplateLayoutView(LoginRequiredMixin, UserPassesTestMixin, View):
             return JsonResponse({'status': 'success'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+class PreviewPDFTemplateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.is_manager() or self.request.user.is_superuser
+
+    def get(self, request):
+        try:
+            buffer = generate_dummy_pdf_buffer()
+        except Exception as e:
+            return HttpResponse(f"Error generating Preview PDF: {e}", status=500)
+
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="jobcard_preview.pdf"' # Inline for preview
+        return response

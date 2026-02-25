@@ -4,7 +4,7 @@ from .views import (
     CustomLoginView, DashboardView, JobcardCreateView, JobcardUpdateView,
     ManagerJobcardView, AdminJobcardView, UserListView, UserCreateView,
     CompanyCreateView, SettingsView, JobcardPDFView, JobcardAutosaveView,
-    FormDesignerView, SaveTemplateLayoutView
+    FormDesignerView, SaveTemplateLayoutView, PreviewPDFTemplateView
 )
 
 urlpatterns = [
@@ -23,4 +23,5 @@ urlpatterns = [
     path('pdf/<int:pk>/', JobcardPDFView.as_view(), name='jobcard_pdf'),
     path('manage/designer/', FormDesignerView.as_view(), name='form_designer'),
     path('manage/designer/save/', SaveTemplateLayoutView.as_view(), name='save_template_layout'),
+    path('manage/designer/preview/', PreviewPDFTemplateView.as_view(), name='preview_template_layout'),
 ]
