@@ -44,12 +44,11 @@ def save_signature_image(base64_data):
 def setup_default_template_elements():
     """Initializes default PDF template elements if none exist."""
     defaults = [
-        {'element_name': 'logo', 'pos_x': 40, 'pos_y': 40, 'width': 120, 'height': 60, 'font_size': 0},
+        {'element_name': 'header_logo', 'pos_x': 40, 'pos_y': 40, 'width': 120, 'height': 60, 'font_size': 0},
         {'element_name': 'company_info', 'pos_x': 200, 'pos_y': 40, 'width': 350, 'height': 60, 'font_size': 12},
-        {'element_name': 'jobcard_details', 'pos_x': 400, 'pos_y': 110, 'width': 150, 'height': 50, 'font_size': 10},
-        {'element_name': 'technician_details', 'pos_x': 40, 'pos_y': 110, 'width': 200, 'height': 40, 'font_size': 10},
-        {'element_name': 'client_details', 'pos_x': 40, 'pos_y': 150, 'width': 200, 'height': 40, 'font_size': 10},
-        {'element_name': 'times', 'pos_x': 300, 'pos_y': 150, 'width': 250, 'height': 40, 'font_size': 10},
+        {'element_name': 'jobcard_meta', 'pos_x': 400, 'pos_y': 110, 'width': 150, 'height': 50, 'font_size': 10},
+        {'element_name': 'client_details', 'pos_x': 40, 'pos_y': 110, 'width': 200, 'height': 40, 'font_size': 10},
+        {'element_name': 'start_stop_times', 'pos_x': 300, 'pos_y': 150, 'width': 250, 'height': 40, 'font_size': 10},
         {'element_name': 'items_table', 'pos_x': 40, 'pos_y': 210, 'width': 515, 'height': 300, 'font_size': 10},
         {'element_name': 'manager_notes', 'pos_x': 40, 'pos_y': 530, 'width': 515, 'height': 60, 'font_size': 10},
         {'element_name': 'admin_notes', 'pos_x': 40, 'pos_y': 600, 'width': 515, 'height': 60, 'font_size': 10},
@@ -76,21 +75,12 @@ def generate_pdf_buffer(jobcard):
     p.setLineWidth(1)
     p.rect(20, 20, width - 40, height - 40)
 
-    # Helper to convert Web Y (Top-Left) to ReportLab Y (Bottom-Left)
-    def get_rl_y(web_y, elem_height):
-        # Web Y is distance from top. RL Y is distance from bottom.
-        # However, the designer saves Top-Left coordinates.
-        # ReportLab drawString(x, y) uses Bottom-Left origin.
-        # So: RL_Y = PageHeight - Web_Y - ElementHeight (roughly, for top-aligned text)
-        # OR: RL_Y = PageHeight - Web_Y
-        return height - web_y
-
     # --- GLOBAL SETTINGS ---
     settings_obj = GlobalSettings.objects.first()
 
     # --- LOGO ---
-    if 'logo' in elements:
-        el = elements['logo']
+    if 'header_logo' in elements:
+        el = elements['header_logo']
         if settings_obj and settings_obj.company_logo:
             try:
                 # drawImage(image, x, y, width, height)
@@ -112,9 +102,9 @@ def generate_pdf_buffer(jobcard):
         for i, line in enumerate(lines):
             p.drawString(el.pos_x, rl_y - ((i+1) * (el.font_size + 2)), line)
 
-    # --- JOBCARD DETAILS ---
-    if 'jobcard_details' in elements:
-        el = elements['jobcard_details']
+    # --- JOBCARD META (Jobcard Details) ---
+    if 'jobcard_meta' in elements:
+        el = elements['jobcard_meta']
         rl_y = height - el.pos_y - el.font_size
         p.setFont("Helvetica-Bold", el.font_size)
         p.drawString(el.pos_x, rl_y, f"Jobcard No: {jobcard.jobcard_number}")
@@ -122,13 +112,8 @@ def generate_pdf_buffer(jobcard):
         p.drawString(el.pos_x, rl_y - 24, f"Status: {jobcard.get_status_display()}")
         p.drawString(el.pos_x, rl_y - 36, f"Category: {jobcard.get_category_display()}")
 
-    # --- TECHNICIAN DETAILS ---
-    if 'technician_details' in elements:
-        el = elements['technician_details']
-        rl_y = height - el.pos_y - el.font_size
-        p.setFont("Helvetica", el.font_size)
-        tech_name = jobcard.technician.get_full_name() if jobcard.technician else 'N/A'
-        p.drawString(el.pos_x, rl_y, f"Technician: {tech_name}")
+        # Technician Name under Meta or Client Details
+        p.drawString(el.pos_x, rl_y - 48, f"Tech: {jobcard.technician.get_full_name() if jobcard.technician else 'N/A'}")
 
     # --- CLIENT DETAILS ---
     if 'client_details' in elements:
@@ -138,9 +123,9 @@ def generate_pdf_buffer(jobcard):
         p.drawString(el.pos_x, rl_y, f"Client: {jobcard.company.name}")
         p.drawString(el.pos_x, rl_y - 12, f"Address: {jobcard.company.address[:50]}") # Truncate
 
-    # --- TIMES ---
-    if 'times' in elements:
-        el = elements['times']
+    # --- START/STOP TIMES ---
+    if 'start_stop_times' in elements:
+        el = elements['start_stop_times']
         rl_y = height - el.pos_y - el.font_size
         p.setFont("Helvetica", el.font_size)
         start_str = jobcard.time_start.strftime('%Y-%m-%d %H:%M') if jobcard.time_start else '-'

@@ -187,10 +187,7 @@
             const x = parseFloat(el.getAttribute('data-x'));
             const y = parseFloat(el.getAttribute('data-y'));
             // Get computed width/height
-            const rect = el.getBoundingClientRect();
             // We want the style width/height (relative to container scale if any, but here 1:1)
-            // or simply use offsetWidth/offsetHeight if no scaling on container
-            // The style.width/height is explicitly set by interact.js
             const width = parseFloat(el.style.width);
             const height = parseFloat(el.style.height);
 
