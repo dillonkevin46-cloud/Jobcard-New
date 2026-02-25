@@ -637,6 +637,39 @@ class AdminJobcardView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         messages.success(self.request, "Jobcard marked as Invoiced!")
         return redirect(self.success_url)
 
+class AdminArchiveListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Jobcard
+    template_name = 'jobcard_archive.html'
+    context_object_name = 'archived_jobcards'
+    paginate_by = 20
+
+    def test_func(self):
+        return self.request.user.is_admin_role() or self.request.user.is_superuser
+
+    def get_queryset(self):
+        qs = Jobcard.objects.filter(status=Jobcard.Status.INVOICED).order_by('-created_at')
+
+        # Search
+        query = self.request.GET.get('q')
+        if query:
+            qs = qs.filter(
+                Q(jobcard_number__icontains=query) |
+                Q(company__name__icontains=query) |
+                Q(technician__username__icontains=query)
+            )
+
+        # Filter
+        category = self.request.GET.get('category')
+        if category:
+            qs = qs.filter(category=category)
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category_choices'] = Jobcard.Category.choices
+        return context
+
 class UserListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = User
     template_name = 'user_list.html'

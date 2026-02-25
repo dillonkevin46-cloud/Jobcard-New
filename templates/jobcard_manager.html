@@ -93,15 +93,10 @@
         if(managerPad) managerPad.clear();
     }
 
-    // We need to attach the submit listener to the form rendered by crispy
-    // Crispy form usually has no ID unless specified.
-    // ManagerActionForm helper does not specify form_id.
-    // But it's the only form in this block (or the main one).
-    // Let's add an ID to the form in forms.py or select by 'form' tag.
+    const managerForm = document.getElementById('managerActionForm');
 
-    const form = document.querySelector('form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
+    if (managerForm) {
+        managerForm.addEventListener('submit', function(e) {
             if (managerPad && !managerPad.isEmpty()) {
                 const hiddenInput = document.getElementById('id_manager_signature_data');
                 if (hiddenInput) {
