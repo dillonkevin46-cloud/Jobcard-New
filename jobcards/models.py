@@ -56,12 +56,11 @@ class GlobalSettings(models.Model):
 
 class PDFTemplateElement(models.Model):
     ELEMENT_CHOICES = [
-        ('logo', 'Company Logo'),
+        ('header_logo', 'Company Logo'),
         ('company_info', 'Company Info (Name/Address)'),
-        ('jobcard_details', 'Jobcard # & Date'),
-        ('client_details', 'Client Name'),
-        ('technician_details', 'Technician Name'),
-        ('times', 'Start/Stop Times'),
+        ('jobcard_meta', 'Jobcard Details (Num/Date)'),
+        ('client_details', 'Client Details'),
+        ('start_stop_times', 'Start/Stop Times'),
         ('items_table', 'Items Table'),
         ('manager_notes', 'Manager Notes'),
         ('admin_notes', 'Admin Notes'),

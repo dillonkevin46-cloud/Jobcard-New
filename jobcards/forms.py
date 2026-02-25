@@ -60,8 +60,8 @@ class JobcardForm(forms.ModelForm):
             'manager_notes', 'admin_notes'
         ]
         widgets = {
-            'time_start': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
-            'time_stop': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'time_start': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'time_stop': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'manager_notes': forms.Textarea(attrs={'rows': 3}),
             'admin_notes': forms.Textarea(attrs={'rows': 3}),
         }
