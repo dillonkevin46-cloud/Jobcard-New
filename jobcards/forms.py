@@ -167,6 +167,7 @@ class ManagerActionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
+        self.helper.form_id = 'managerActionForm'
         self.helper.add_input(Submit('submit', 'Approve & Sign'))
 
         manager_sig_html = ""

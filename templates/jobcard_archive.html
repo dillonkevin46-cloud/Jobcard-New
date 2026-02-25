@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Jobcard Archive{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2 class="mb-4">Jobcard Archive</h2>
+
+        <!-- Search & Filter Card -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <form method="get" class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="q" class="form-label">Search</label>
+                        <input type="text" name="q" id="q" class="form-control"
+                               placeholder="Jobcard #, Company, Tech..."
+                               value="{{ request.GET.q }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select name="category" id="category" class="form-select">
+                            <option value="">All Categories</option>
+                            {% for code, label in category_choices %}
+                                <option value="{{ code }}" {% if request.GET.category == code %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Search
+                        </button>
+                    </div>
+                    <div class="col-md-2">
+                         <a href="{% url 'admin_archive' %}" class="btn btn-outline-secondary w-100">Clear</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card shadow">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>JC Number</th>
+                            <th>Company</th>
+                            <th>Technician</th>
+                            <th>Category</th>
+                            <th>Date</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for jc in archived_jobcards %}
+                        <tr>
+                            <td>{{ jc.jobcard_number }}</td>
+                            <td>{{ jc.company.name }}</td>
+                            <td>{{ jc.technician.get_full_name|default:jc.technician.username }}</td>
+                            <td><span class="badge bg-secondary">{{ jc.get_category_display }}</span></td>
+                            <td>{{ jc.created_at|date:"Y-m-d" }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'jobcard_pdf' jc.pk %}" class="btn btn-sm btn-outline-dark">
+                                    View PDF
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                No archived jobcards found matching your criteria.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination (Optional Basic) -->
+        {% if is_paginated %}
+        <div class="mt-3">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">Previous</a></li>
+                    {% endif %}
+                    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                    {% if page_obj.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">Next</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

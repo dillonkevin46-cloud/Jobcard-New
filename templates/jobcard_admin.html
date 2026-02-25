@@ -18,8 +18,8 @@
                         <p><strong>Technician:</strong> {{ jobcard.technician.get_full_name }}</p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Start:</strong> {{ jobcard.time_start }}</p>
-                        <p><strong>Stop:</strong> {{ jobcard.time_stop }}</p>
+                        <p><strong>Start:</strong> {{ jobcard.time_start|default:"-" }}</p>
+                        <p><strong>Stop:</strong> {{ jobcard.time_stop|default:"-" }}</p>
                     </div>
                 </div>
 
@@ -40,27 +40,36 @@
                     </tbody>
                 </table>
 
+                <div class="row mb-3 mt-3">
+                    <div class="col-12">
+                        <strong>Manager Notes:</strong>
+                        <div class="border p-2 bg-light rounded">
+                            {{ jobcard.manager_notes|default:"No notes."|linebreaks }}
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row mb-3">
-                     <div class="col-md-4">
-                        <strong>Tech Signature:</strong><br>
+                     <div class="col-md-4 text-center">
+                        <strong>Tech Signature</strong><br>
                         {% if jobcard.tech_signature %}
-                            <img src="{{ jobcard.tech_signature.url }}" width="100" class="border">
+                            <img src="{{ jobcard.tech_signature.url }}" width="150" class="border">
                         {% else %}
                             <span class="text-danger">Missing</span>
                         {% endif %}
                      </div>
-                     <div class="col-md-4">
-                        <strong>Client Signature:</strong><br>
+                     <div class="col-md-4 text-center">
+                        <strong>Client Signature</strong><br>
                         {% if jobcard.client_signature %}
-                            <img src="{{ jobcard.client_signature.url }}" width="100" class="border">
+                            <img src="{{ jobcard.client_signature.url }}" width="150" class="border">
                         {% else %}
                              <span class="text-danger">Missing</span>
                         {% endif %}
                      </div>
-                      <div class="col-md-4">
-                        <strong>Manager Signature:</strong><br>
+                      <div class="col-md-4 text-center">
+                        <strong>Manager Signature</strong><br>
                         {% if jobcard.manager_signature %}
-                            <img src="{{ jobcard.manager_signature.url }}" width="100" class="border">
+                            <img src="{{ jobcard.manager_signature.url }}" width="150" class="border">
                         {% else %}
                              <span class="text-danger">Missing</span>
                         {% endif %}
