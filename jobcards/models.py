@@ -110,6 +110,7 @@ class Jobcard(models.Model):
     client_name = models.CharField(max_length=100, blank=True)
     manager_name = models.CharField(max_length=100, blank=True)
 
+    tech_notes = models.TextField(blank=True)
     manager_notes = models.TextField(blank=True)
     admin_notes = models.TextField(blank=True)
 
