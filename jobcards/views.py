@@ -19,7 +19,8 @@ from django.core.mail import EmailMessage
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch, mm
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
 
@@ -62,347 +63,258 @@ def setup_default_template_elements():
         for d in defaults:
             PDFTemplateElement.objects.create(**d)
 
-class NumberedCanvas(canvas.Canvas):
-    def __init__(self, *args, **kwargs):
-        canvas.Canvas.__init__(self, *args, **kwargs)
-        self._saved_page_states = []
+# --- PDF GENERATOR (Bulletproof Flowable Version) ---
 
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
+def draw_background(c, doc):
+    """Hooks into SimpleDocTemplate to draw borders, watermarks, and page numbers."""
+    c.saveState()
+    width, height = A4
 
-    def save(self):
-        num_pages = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self.draw_page_number(num_pages)
-            canvas.Canvas.showPage(self)
-        canvas.Canvas.save(self)
+    # 1. Border
+    c.setStrokeColorRGB(0.2, 0.2, 0.2)
+    c.setLineWidth(1)
+    c.rect(20, 20, width - 40, height - 40)
 
-    def draw_page_number(self, page_count):
-        self.setFont("Helvetica", 9)
-        self.drawRightString(200 * mm, 15 * mm, f"Page {self._pageNumber} of {page_count}")
+    # 2. Watermark
+    settings_obj = GlobalSettings.objects.first()
+    watermark_img = None
+    if settings_obj:
+        if settings_obj.watermark:
+            watermark_img = settings_obj.watermark.path
+        elif settings_obj.company_logo:
+            watermark_img = settings_obj.company_logo.path
 
-
-def draw_page_framework(p, width, height, settings_obj):
-    """Draws borders and watermark for every page."""
-    # Border
-    p.setStrokeColorRGB(0, 0, 0)
-    p.setLineWidth(1)
-    p.rect(20, 20, width - 40, height - 40)
-
-    # Watermark
-    if settings_obj and settings_obj.company_logo:
+    if watermark_img:
         try:
-            p.saveState()
-            p.setFillAlpha(0.1) # Or use image alpha if supported, but reportlab drawImage doesn't support alpha directly like this without Pillow mask tricks.
-            # Easiest way to fake a watermark is draw it large and rely on the fact we draw text OVER it.
-            # However, ReportLab does not support setFillAlpha for images natively.
-            # We will use a PIL trick if possible, or just draw it normally.
-            # To strictly follow instructions "use canvas.saveState(), canvas.setFillAlpha(0.1), draw image...":
-            # setFillAlpha only affects vector graphics/text. For images, we need PIL.
-            # I will attempt to draw it centered.
-            logo_path = settings_obj.company_logo.path
-            img = ImageReader(logo_path)
-            # scale image to fit roughly half page
+            c.saveState()
+            c.setFillAlpha(0.1)
+            img = ImageReader(watermark_img)
             img_w, img_h = img.getSize()
             aspect = img_h / float(img_w)
             target_w = width * 0.6
             target_h = target_w * aspect
-
             x = (width - target_w) / 2
             y = (height - target_h) / 2
-
-            # Since ReportLab canvas doesn't support image transparency natively via setFillAlpha,
-            # we just draw it. If they want true transparency, it requires manipulating image bytes via PIL before drawing.
-            # We will follow the exact requested pseudo-code, but know it might just draw a solid image.
-            # Actually, we can use `mask='auto'` or manipulate pixels, but let's stick to the requested structure.
-            # Actually, `setFillAlpha` DOES work on some PDF viewers for images if the image has an alpha channel,
-            # but standard is to draw it behind everything else.
-
-            p.setFillAlpha(0.1) # Requested by user
-            p.drawImage(logo_path, x, y, width=target_w, height=target_h, preserveAspectRatio=True, mask='auto')
-            p.restoreState()
+            c.drawImage(watermark_img, x, y, width=target_w, height=target_h, preserveAspectRatio=True, mask='auto')
+            c.restoreState()
         except Exception as e:
             print(f"Watermark error: {e}")
+            c.restoreState()
 
-def generate_pdf_buffer(jobcard, is_dummy=False):
-    """
-    Generates a PDF using NumberedCanvas and Table, handling overflows.
-    If is_dummy=True, uses fake data for preview.
-    """
-    setup_default_template_elements()
-    elements = {e.element_name: e for e in PDFTemplateElement.objects.all()}
+    # 3. Page Number
+    c.setFont("Helvetica", 9)
+    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.drawRightString(width - 30, 30, f"Page {doc.page}")
 
-    buffer = io.BytesIO()
-    p = NumberedCanvas(buffer, pagesize=A4)
-    width, height = A4
+    c.restoreState()
+
+def build_pdf_elements(jobcard, is_dummy=False):
+    """Builds the list of Platypus Flowables."""
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Custom Styles
+    style_normal = styles['Normal']
+    style_bold = ParagraphStyle('Bold', parent=style_normal, fontName='Helvetica-Bold')
+    style_title = ParagraphStyle('Title', parent=style_normal, fontName='Helvetica-Bold', fontSize=14, spaceAfter=6)
+    style_header_label = ParagraphStyle('HLabel', parent=style_normal, fontName='Helvetica-Bold', fontSize=10, textColor=colors.HexColor('#444444'))
+    style_header_val = ParagraphStyle('HVal', parent=style_normal, fontName='Helvetica', fontSize=10)
 
     settings_obj = GlobalSettings.objects.first()
 
-    # Draw framework for page 1
-    draw_page_framework(p, width, height, settings_obj)
+    # --- HEADER SECTION (Grid Layout via Table) ---
+    header_data = []
 
-    # --- HEADER DATA (Page 1 Only) ---
+    # Row 1: Logo & Company Info
+    logo_flowable = ""
+    if settings_obj and settings_obj.company_logo:
+        try:
+            logo_flowable = Image(settings_obj.company_logo.path, width=120, height=50, kind='proportional')
+        except: pass
+    elif is_dummy:
+        logo_flowable = Paragraph("<b>[LOGO]</b>", style_normal)
 
-    # Helper to resolve Y coordinate safely
-    def get_rl_y(web_y):
-        return height - web_y
+    c_name = settings_obj.company_name if settings_obj else "Company Name"
+    if is_dummy and not settings_obj: c_name = "Acme Corp"
 
-    # LOGO
-    if 'header_logo' in elements:
-        el = elements['header_logo']
-        if settings_obj and settings_obj.company_logo:
-            try:
-                rl_y = get_rl_y(el.pos_y) - el.height
-                p.drawImage(settings_obj.company_logo.path, el.pos_x, rl_y, width=el.width, height=el.height, preserveAspectRatio=True, mask='auto')
-            except: pass
-        elif is_dummy:
-            rl_y = get_rl_y(el.pos_y) - el.height
-            p.rect(el.pos_x, rl_y, el.width, el.height)
-            p.drawString(el.pos_x + 5, rl_y + 10, "LOGO")
+    c_addr = settings_obj.company_address if settings_obj else ""
+    if is_dummy and not c_addr: c_addr = "123 Fake Street\nCity, Country"
 
-    # COMPANY INFO
-    if 'company_info' in elements:
-        el = elements['company_info']
-        rl_y = get_rl_y(el.pos_y) - el.font_size
-        p.setFont("Helvetica-Bold", el.font_size + 2)
-        c_name = settings_obj.company_name if settings_obj else "Company Name"
-        if is_dummy and not settings_obj: c_name = "Acme Corp"
-        p.drawString(el.pos_x, rl_y, c_name)
+    company_info = [Paragraph(c_name, style_title)]
+    for line in c_addr.split('\n'):
+        if line.strip():
+            company_info.append(Paragraph(line.strip(), style_normal))
 
-        p.setFont("Helvetica", el.font_size)
-        c_addr = settings_obj.company_address if settings_obj else ""
-        if is_dummy and not c_addr: c_addr = "123 Fake Street\nCity, Country"
-        # Split by newline or comma for up to 4 lines
-        lines = [line.strip() for addr_part in c_addr.split('\n') for line in addr_part.split(',') if line.strip()][:4]
-        for i, line in enumerate(lines):
-            p.drawString(el.pos_x, rl_y - ((i+1) * (el.font_size + 2)), line)
+    jc_num = "JC-PREVIEW-123" if is_dummy else jobcard.jobcard_number
+    jc_date = "2023-10-27" if is_dummy else jobcard.created_at.strftime('%Y-%m-%d')
+    jc_stat = "APPROVED" if is_dummy else jobcard.get_status_display()
+    jc_cat = "Call Out" if is_dummy else jobcard.get_category_display()
 
-    # JOBCARD META
-    if 'jobcard_meta' in elements:
-        el = elements['jobcard_meta']
-        rl_y = get_rl_y(el.pos_y) - el.font_size
-        p.setFont("Helvetica-Bold", el.font_size)
+    meta_info = [
+        Paragraph(f"<b>Jobcard No:</b> {jc_num}", style_normal),
+        Paragraph(f"<b>Date:</b> {jc_date}", style_normal),
+        Paragraph(f"<b>Status:</b> {jc_stat}", style_normal),
+        Paragraph(f"<b>Category:</b> {jc_cat}", style_normal),
+    ]
 
-        jc_num = "JC-PREVIEW-123" if is_dummy else jobcard.jobcard_number
-        jc_date = "2023-10-27" if is_dummy else jobcard.created_at.strftime('%Y-%m-%d')
-        jc_stat = "APPROVED" if is_dummy else jobcard.get_status_display()
+    header_data.append([logo_flowable, company_info, meta_info])
 
-        p.drawString(el.pos_x, rl_y, f"Jobcard No: {jc_num}")
-        p.drawString(el.pos_x, rl_y - 12, f"Date: {jc_date}")
-        p.drawString(el.pos_x, rl_y - 24, f"Status: {jc_stat}")
+    header_table = Table(header_data, colWidths=[130, 220, 160])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+    ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 10))
 
-    # CLIENT DETAILS
-    if 'client_details' in elements:
-        el = elements['client_details']
-        rl_y = get_rl_y(el.pos_y) - el.font_size
-        p.setFont("Helvetica", el.font_size)
+    # Row 2: Client, Tech, Times
+    c_name = "Acme Corp" if is_dummy else jobcard.client_name
+    if not c_name and not is_dummy: c_name = jobcard.company.name
+    tech_name = "John Doe" if is_dummy else (jobcard.technician.get_full_name() if jobcard.technician else 'N/A')
+    start_str = "2023-10-27 09:00" if is_dummy else (jobcard.time_start.strftime('%Y-%m-%d %H:%M') if jobcard.time_start else '-')
+    stop_str = "2023-10-27 11:30" if is_dummy else (jobcard.time_stop.strftime('%Y-%m-%d %H:%M') if jobcard.time_stop else '-')
 
-        c_name = "Acme Corp" if is_dummy else jobcard.client_name
-        if not c_name and not is_dummy: c_name = jobcard.company.name
+    details_data = [
+        [Paragraph("<b>Client Name:</b>", style_header_label), Paragraph(c_name, style_header_val),
+         Paragraph("<b>Start Time:</b>", style_header_label), Paragraph(start_str, style_header_val)],
 
-        p.drawString(el.pos_x, rl_y, f"Client Name: {c_name}")
+        [Paragraph("<b>Technician:</b>", style_header_label), Paragraph(tech_name, style_header_val),
+         Paragraph("<b>Stop Time:</b>", style_header_label), Paragraph(stop_str, style_header_val)]
+    ]
 
-        tech_name = "John Doe" if is_dummy else (jobcard.technician.get_full_name() if jobcard.technician else 'N/A')
-        p.drawString(el.pos_x, rl_y - 12, f"Technician: {tech_name}")
-
-    # START STOP TIMES
-    if 'start_stop_times' in elements:
-        el = elements['start_stop_times']
-        rl_y = get_rl_y(el.pos_y) - el.font_size
-        p.setFont("Helvetica", el.font_size)
-
-        start_str = "2023-10-27 09:00" if is_dummy else (jobcard.time_start.strftime('%Y-%m-%d %H:%M') if jobcard.time_start else '-')
-        stop_str = "2023-10-27 11:30" if is_dummy else (jobcard.time_stop.strftime('%Y-%m-%d %H:%M') if jobcard.time_stop else '-')
-
-        p.drawString(el.pos_x, rl_y, f"Start: {start_str}")
-        p.drawString(el.pos_x + 120, rl_y, f"Stop: {stop_str}")
+    details_table = Table(details_data, colWidths=[80, 180, 80, 170])
+    details_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elements.append(details_table)
+    elements.append(Spacer(1, 20))
 
     # --- ITEMS TABLE ---
-    current_y_position = 0 # Track where we are vertically
+    table_data = [['Description', 'Parts Used', 'Qty', 'Person Helped']]
 
-    if 'items_table' in elements:
-        el = elements['items_table']
-        table_start_y = get_rl_y(el.pos_y)
+    if is_dummy:
+        dummy_items = [
+            ("Diagnosed network issue", "Cat6 Cable", "10m", "Jane Smith"),
+            ("Replaced Switch", "24-Port Switch", "1", "Jane Smith"),
+            ("Configured VLANs", "-", "1", "IT Manager"),
+        ] * 10 # Force multiple pages
+        table_data.extend(dummy_items)
+    else:
+        for item in jobcard.items.all():
+            table_data.append([
+                Paragraph(item.description, style_normal),
+                Paragraph(item.parts_used, style_normal),
+                str(item.qty),
+                Paragraph(item.person_helped, style_normal)
+            ])
 
-        data = [['Description', 'Parts Used', 'Qty', 'Person Helped']]
+    items_table = Table(table_data, colWidths=[200, 160, 40, 110], repeatRows=1)
+    items_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4f6f9')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(items_table)
+    elements.append(Spacer(1, 20))
 
-        if is_dummy:
-            data.extend([
-                ("Diagnosed network issue", "Cat6 Cable", "10m", "Jane Smith"),
-                ("Replaced Switch", "24-Port Switch", "1", "Jane Smith"),
-                ("Configured VLANs", "-", "1", "IT Manager"),
-            ] * 5) # Multiply to force wrap test if needed
-        else:
-            for item in jobcard.items.all():
-                data.append([item.description, item.parts_used, str(item.qty), item.person_helped])
-
-        # Widths: 40%, 30%, 10%, 20%
-        col_widths = [el.width * 0.4, el.width * 0.3, el.width * 0.1, el.width * 0.2]
-
-        table = Table(data, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), el.font_size),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ]))
-
-        # Drawing loop with overflow logic
-        avail_height = table_start_y - 40 # Leave 40 pts at bottom for margins
-
-        while table:
-            # How much table fits?
-            w, h = table.wrapOn(p, el.width, avail_height)
-
-            if h <= avail_height:
-                # Fits completely
-                table.drawOn(p, el.pos_x, table_start_y - h)
-                current_y_position = table_start_y - h
-                table = None # Done
-            else:
-                # Needs split
-                # Try to split
-                split_tables = table.split(el.width, avail_height)
-                if len(split_tables) == 1:
-                    # Couldn't split (row too big), force draw and clip
-                     table.drawOn(p, el.pos_x, table_start_y - h)
-                     current_y_position = table_start_y - h
-                     table = None
-                else:
-                    table_part = split_tables[0]
-                    w_part, h_part = table_part.wrapOn(p, el.width, avail_height)
-                    table_part.drawOn(p, el.pos_x, table_start_y - h_part)
-
-                    # Next page
-                    p.showPage()
-                    draw_page_framework(p, width, height, settings_obj)
-
-                    # Reset variables for new page
-                    table = split_tables[1]
-                    table_start_y = height - 40 # Start from top margin
-                    avail_height = table_start_y - 40
-
-    # --- DYNAMIC NOTES & SIGNATURES ---
-    # We want these to flow BELOW the table.
-    # The user requested specific positions from the DB, but also dynamic multi-page flow.
-    # To satisfy both: We will use the DB X-coordinate, but calculate Y dynamically based on where the table ended,
-    # OR we use the DB Y-coordinate if it's lower than current_y_position.
-    # Given instructions say "flow downward correctly and handle page breaks", we will flow them.
-
-    # Calculate spacing
-    y_offset = current_y_position - 20
-
-    def check_page_break(required_height, current_y, p):
-        if current_y - required_height < 40:
-            p.showPage()
-            draw_page_framework(p, width, height, settings_obj)
-            return height - 40
-        return current_y
+    # --- NOTES & SIGNATURES ---
 
     status = "INVOICED" if is_dummy else jobcard.status
 
-    # TECH NOTES & SIGNATURE (Always)
+    # Tech Section (Always)
     tech_notes = "Replaced parts and tested." if is_dummy else jobcard.tech_notes
     tech_sig = None if is_dummy else jobcard.tech_signature
-    tech_name = "John Doe" if is_dummy else jobcard.tech_name
     client_sig = None if is_dummy else jobcard.client_signature
-    client_name = "Acme Corp" if is_dummy else jobcard.client_name
 
-    # Check space for Tech Block (approx 100 pts)
-    y_offset = check_page_break(120, y_offset, p)
+    elements.append(Paragraph("Technician Notes:", style_bold))
+    elements.append(Paragraph(tech_notes or "N/A", style_normal))
+    elements.append(Spacer(1, 15))
 
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(40, y_offset, "Technician Notes:")
-    p.setFont("Helvetica", 10)
-    y_offset -= 15
+    # Signatures Grid
+    def build_sig_block(title, name, img_field):
+        block = [Paragraph(f"<b>{title}:</b> {name}", style_normal)]
+        if img_field:
+            try:
+                block.append(Image(img_field.path, width=120, height=40, kind='proportional'))
+            except:
+                block.append(Spacer(1, 40))
+        else:
+            block.append(Spacer(1, 40)) # Empty box area
+        return block
 
-    # Simple text wrap for notes
-    from reportlab.lib.utils import simpleSplit
-    lines = simpleSplit(tech_notes, "Helvetica", 10, width - 80)
-    for line in lines:
-        p.drawString(40, y_offset, line)
-        y_offset -= 12
+    tech_block = build_sig_block("Tech Sign", tech_name, tech_sig)
+    client_block = build_sig_block("Client Sign", c_name, client_sig)
 
-    y_offset -= 20
-    y_offset = check_page_break(80, y_offset, p)
+    sig_data = [[tech_block, client_block]]
+    sig_table = Table(sig_data, colWidths=[255, 255])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOX', (0,0), (0,0), 1, colors.HexColor('#ced4da')),
+        ('BOX', (1,0), (1,0), 1, colors.HexColor('#ced4da')),
+        ('LEFTPADDING', (0,0), (-1,-1), 10),
+        ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ('TOPPADDING', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
 
-    # Signatures (Tech & Client)
-    sig_w = 150
-    sig_h = 50
-    p.drawString(40, y_offset, f"Tech Sign: {tech_name}")
-    p.drawString(250, y_offset, f"Client Sign: {client_name}")
+    elements.append(KeepTogether(sig_table))
+    elements.append(Spacer(1, 20))
 
-    y_offset -= sig_h
-    p.rect(40, y_offset, sig_w, sig_h)
-    p.rect(250, y_offset, sig_w, sig_h)
-
-    if tech_sig:
-        try: p.drawImage(tech_sig.path, 45, y_offset+5, width=sig_w-10, height=sig_h-10, preserveAspectRatio=True, mask='auto')
-        except: pass
-    if client_sig:
-        try: p.drawImage(client_sig.path, 255, y_offset+5, width=sig_w-10, height=sig_h-10, preserveAspectRatio=True, mask='auto')
-        except: pass
-
-    y_offset -= 20
-
-    # MANAGER SECTION (Conditionally)
+    # Manager Section (Approved/Invoiced)
     if status in ['APPROVED', 'INVOICED']:
-        y_offset = check_page_break(100, y_offset, p)
-
-        manager_notes = "Approved." if is_dummy else jobcard.manager_notes
+        manager_notes = "Approved. Good work." if is_dummy else jobcard.manager_notes
         manager_sig = None if is_dummy else jobcard.manager_signature
         manager_name = "Boss Man" if is_dummy else jobcard.manager_name
 
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(40, y_offset, "Manager Notes:")
-        p.setFont("Helvetica", 10)
-        y_offset -= 15
+        elements.append(Paragraph("Manager Notes:", style_bold))
+        elements.append(Paragraph(manager_notes or "N/A", style_normal))
+        elements.append(Spacer(1, 15))
 
-        lines = simpleSplit(manager_notes, "Helvetica", 10, width - 80)
-        for line in lines:
-            p.drawString(40, y_offset, line)
-            y_offset -= 12
+        man_block = build_sig_block("Manager Sign", manager_name, manager_sig)
+        man_table = Table([[man_block, ""]], colWidths=[255, 255]) # Align left
+        man_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('BOX', (0,0), (0,0), 1, colors.HexColor('#ced4da')),
+            ('LEFTPADDING', (0,0), (0,0), 10),
+            ('RIGHTPADDING', (0,0), (0,0), 10),
+            ('TOPPADDING', (0,0), (0,0), 10),
+            ('BOTTOMPADDING', (0,0), (0,0), 10),
+        ]))
+        elements.append(KeepTogether(man_table))
+        elements.append(Spacer(1, 20))
 
-        y_offset -= 20
-        y_offset = check_page_break(80, y_offset, p)
-
-        p.drawString(40, y_offset, f"Manager Sign: {manager_name}")
-        y_offset -= sig_h
-        p.rect(40, y_offset, sig_w, sig_h)
-        if manager_sig:
-            try: p.drawImage(manager_sig.path, 45, y_offset+5, width=sig_w-10, height=sig_h-10, preserveAspectRatio=True, mask='auto')
-            except: pass
-
-        y_offset -= 20
-
-    # ADMIN SECTION (Conditionally)
+    # Admin Section (Invoiced)
     if status == 'INVOICED':
-        y_offset = check_page_break(50, y_offset, p)
+        admin_notes = "Invoiced #INV-999" if is_dummy else jobcard.admin_notes
+        elements.append(Paragraph("Admin Notes:", style_bold))
+        elements.append(Paragraph(admin_notes or "N/A", style_normal))
 
-        admin_notes = "Invoiced #999" if is_dummy else jobcard.admin_notes
+    return elements
 
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(40, y_offset, "Admin Notes:")
-        p.setFont("Helvetica", 10)
-        y_offset -= 15
-
-        lines = simpleSplit(admin_notes, "Helvetica", 10, width - 80)
-        for line in lines:
-            p.drawString(40, y_offset, line)
-            y_offset -= 12
-
-    p.save()
+def generate_pdf_buffer(jobcard, is_dummy=False):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=50
+    )
+    elements = build_pdf_elements(jobcard, is_dummy)
+    doc.build(elements, onFirstPage=draw_background, onLaterPages=draw_background)
     buffer.seek(0)
     return buffer
 
 def generate_dummy_pdf_buffer():
     return generate_pdf_buffer(None, is_dummy=True)
+
 
 # --- VIEWS ---
 
@@ -567,7 +479,7 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 class JobcardAutosaveView(LoginRequiredMixin, View):
     def post(self, request, pk):
         jobcard = get_object_or_404(Jobcard, pk=pk)
-        if jobcard.technician != request.user and not request.request.user.is_superuser:
+        if jobcard.technician != request.user and not request.user.is_superuser:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
 
         form = JobcardForm(request.POST, instance=jobcard, user=request.user)

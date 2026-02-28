@@ -4,54 +4,70 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-12">
-        <h2 class="mb-3">Dashboard <small class="text-muted">({{ user.role }})</small></h2>
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="mb-0 fw-bold text-dark">Dashboard</h2>
+        <p class="text-muted mb-0">Welcome back, {{ user.get_full_name|default:user.username }} ({{ user.get_role_display }})</p>
     </div>
+    {% if user.is_technician %}
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="{% url 'jobcard_create' %}" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-2"></i>Create New Jobcard</a>
+    </div>
+    {% endif %}
 </div>
 
 {% if user.is_technician %}
 <div class="row">
     <div class="col-md-12 mb-4">
-        <div class="card">
-            <div class="card-header bg-warning">
-                Active Jobcards (Draft/Submitted)
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="mb-0 text-primary"><i class="bi bi-clock-history me-2"></i>Active Jobcards</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if active_jobcards %}
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>JC Number</th>
-                            <th>Company</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for jc in active_jobcards %}
-                        <tr>
-                            <td>{{ jc.jobcard_number }}</td>
-                            <td>{{ jc.company.name }}</td>
-                            <td>{{ jc.get_category_display }}</td>
-                            <td><span class="badge bg-secondary">{{ jc.get_status_display }}</span></td>
-                            <td>{{ jc.created_at|date:"Y-m-d" }}</td>
-                            <td>
-                                {% if jc.status == 'DRAFT' %}
-                                    <a href="{% url 'jobcard_update' jc.pk %}" class="btn btn-sm btn-primary">Continue</a>
-                                {% else %}
-                                    <a href="{% url 'jobcard_pdf' jc.pk %}" class="btn btn-sm btn-secondary">View PDF</a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light text-muted small">
+                            <tr>
+                                <th class="ps-4">JC Number</th>
+                                <th>Company</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for jc in active_jobcards %}
+                            <tr>
+                                <td class="ps-4 fw-medium">{{ jc.jobcard_number }}</td>
+                                <td>{{ jc.company.name }}</td>
+                                <td>{{ jc.get_category_display }}</td>
+                                <td>
+                                    {% if jc.status == 'DRAFT' %}
+                                        <span class="badge bg-secondary rounded-pill fw-normal px-3 py-2">Draft</span>
+                                    {% else %}
+                                        <span class="badge bg-info rounded-pill fw-normal px-3 py-2">Submitted</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ jc.created_at|date:"M d, Y" }}</td>
+                                <td class="text-end pe-4">
+                                    {% if jc.status == 'DRAFT' %}
+                                        <a href="{% url 'jobcard_update' jc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil me-1"></i>Continue</a>
+                                    {% else %}
+                                        <a href="{% url 'jobcard_pdf' jc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-pdf text-danger me-1"></i>PDF</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <p>No active jobcards.</p>
-                <a href="{% url 'jobcard_create' %}" class="btn btn-primary">Start New Jobcard</a>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4 d-block mb-3 opacity-50"></i>
+                    <p>No active jobcards. You're all caught up!</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -62,38 +78,49 @@
 {% if user.is_manager %}
 <div class="row">
     <div class="col-md-12 mb-4">
-        <div class="card border-warning">
-            <div class="card-header bg-warning text-dark">
-                Pending Approval
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-warning"><i class="bi bi-exclamation-circle me-2"></i>Pending Approval</h5>
+                <span class="badge bg-warning text-dark rounded-pill">{{ pending_approval.count }}</span>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if pending_approval %}
-                <table class="table table-striped">
-                     <thead>
-                        <tr>
-                            <th>JC Number</th>
-                            <th>Technician</th>
-                            <th>Company</th>
-                            <th>Date</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for jc in pending_approval %}
-                        <tr>
-                            <td>{{ jc.jobcard_number }}</td>
-                            <td>{{ jc.technician.get_full_name|default:jc.technician.username }}</td>
-                            <td>{{ jc.company.name }}</td>
-                            <td>{{ jc.created_at|date:"Y-m-d H:i" }}</td>
-                            <td>
-                                <a href="{% url 'manager_approve' jc.pk %}" class="btn btn-sm btn-success">Review & Approve</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                         <thead class="table-light text-muted small">
+                            <tr>
+                                <th class="ps-4">JC Number</th>
+                                <th>Technician</th>
+                                <th>Company</th>
+                                <th>Date Submitted</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for jc in pending_approval %}
+                            <tr>
+                                <td class="ps-4 fw-medium">{{ jc.jobcard_number }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-light rounded-circle p-2 me-2 text-primary"><i class="bi bi-person"></i></div>
+                                        {{ jc.technician.get_full_name|default:jc.technician.username }}
+                                    </div>
+                                </td>
+                                <td>{{ jc.company.name }}</td>
+                                <td>{{ jc.updated_at|date:"M d, Y H:i" }}</td>
+                                <td class="text-end pe-4">
+                                    <a href="{% url 'manager_approve' jc.pk %}" class="btn btn-sm btn-warning shadow-sm"><i class="bi bi-check2-square me-1"></i>Review</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <p>No jobcards pending approval.</p>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-check-circle display-4 d-block mb-3 opacity-50 text-success"></i>
+                    <p>No jobcards pending approval.</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -104,37 +131,47 @@
 {% if user.is_admin_role or user.is_custom_superuser %}
 <div class="row">
     <div class="col-md-12 mb-4">
-        <div class="card border-info">
-            <div class="card-header bg-info text-white">
-                Ready for Invoicing
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-success"><i class="bi bi-currency-dollar me-2"></i>Ready for Invoicing</h5>
+                <span class="badge bg-success rounded-pill">{{ ready_for_invoice.count }}</span>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if ready_for_invoice %}
-                <table class="table table-striped">
-                     <thead>
-                        <tr>
-                            <th>JC Number</th>
-                            <th>Company</th>
-                            <th>Manager Approved</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for jc in ready_for_invoice %}
-                        <tr>
-                            <td>{{ jc.jobcard_number }}</td>
-                            <td>{{ jc.company.name }}</td>
-                            <td>{{ jc.manager_name }}</td>
-                            <td>
-                                <a href="{% url 'admin_invoice' jc.pk %}" class="btn btn-sm btn-info text-white">Mark Invoiced</a>
-                                <a href="{% url 'jobcard_pdf' jc.pk %}" class="btn btn-sm btn-secondary">Download PDF</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                         <thead class="table-light text-muted small">
+                            <tr>
+                                <th class="ps-4">JC Number</th>
+                                <th>Company</th>
+                                <th>Approved By</th>
+                                <th>Date Approved</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for jc in ready_for_invoice %}
+                            <tr>
+                                <td class="ps-4 fw-medium">{{ jc.jobcard_number }}</td>
+                                <td>{{ jc.company.name }}</td>
+                                <td><i class="bi bi-shield-check text-success me-1"></i>{{ jc.manager_name }}</td>
+                                <td>{{ jc.updated_at|date:"M d, Y" }}</td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'jobcard_pdf' jc.pk %}" class="btn btn-sm btn-outline-secondary" title="View PDF"><i class="bi bi-file-pdf text-danger"></i></a>
+                                        <a href="{% url 'admin_invoice' jc.pk %}" class="btn btn-sm btn-success"><i class="bi bi-receipt me-1"></i>Process</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <p>No jobcards ready for invoicing.</p>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4 d-block mb-3 opacity-50"></i>
+                    <p>No jobcards waiting for invoice.</p>
+                </div>
                 {% endif %}
             </div>
         </div>
