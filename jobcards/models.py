@@ -92,7 +92,7 @@ class Jobcard(models.Model):
         REMOTE = 'REMOTE', 'Remote'
 
     jobcard_number = models.CharField(max_length=20, unique=True, editable=False)
-    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, null=True, blank=True)
     technician = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='jobcards')
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.CALL_OUT)
 
@@ -127,7 +127,8 @@ class Jobcard(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.jobcard_number} - {self.company.name}"
+        c_name = self.company.name if self.company else self.client_name
+        return f"{self.jobcard_number} - {c_name}"
 
 class JobcardItem(models.Model):
     jobcard = models.ForeignKey(Jobcard, related_name='items', on_delete=models.CASCADE)

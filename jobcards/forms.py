@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.forms import inlineformset_factory
+from django.core.exceptions import ValidationError
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field, HTML, Div
 from .models import User, Jobcard, JobcardItem, Company, GlobalSettings
@@ -66,6 +67,16 @@ class JobcardForm(forms.ModelForm):
             'manager_notes': forms.Textarea(attrs={'rows': 3}),
             'admin_notes': forms.Textarea(attrs={'rows': 3}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        company = cleaned_data.get("company")
+        client_name = cleaned_data.get("client_name")
+
+        if not company and not client_name:
+            raise ValidationError("Please select a Company or manually type a Client Name.")
+
+        return cleaned_data
 
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)

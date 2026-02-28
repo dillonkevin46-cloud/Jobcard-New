@@ -169,7 +169,14 @@ def build_pdf_elements(jobcard, is_dummy=False):
 
     # Row 2: Client, Tech, Times
     c_name = "Acme Corp" if is_dummy else jobcard.client_name
-    if not c_name and not is_dummy: c_name = jobcard.company.name
+    if not is_dummy:
+        if jobcard.company:
+            c_name = jobcard.company.name
+        elif jobcard.client_name:
+            c_name = jobcard.client_name
+        else:
+            c_name = "N/A"
+
     tech_name = "John Doe" if is_dummy else (jobcard.technician.get_full_name() if jobcard.technician else 'N/A')
     start_str = "2023-10-27 09:00" if is_dummy else (jobcard.time_start.strftime('%Y-%m-%d %H:%M') if jobcard.time_start else '-')
     stop_str = "2023-10-27 11:30" if is_dummy else (jobcard.time_stop.strftime('%Y-%m-%d %H:%M') if jobcard.time_stop else '-')
@@ -350,6 +357,12 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def test_func(self):
         return self.request.user.is_technician() or self.request.user.is_superuser
 
+    def get_initial(self):
+        initial = super().get_initial()
+        user = self.request.user
+        initial['tech_name'] = user.get_full_name() or user.username
+        return initial
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
@@ -390,17 +403,25 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             if action == 'submit':
                 try:
                     pdf_buffer = generate_pdf_buffer(self.object)
-                    email = EmailMessage(
-                        subject=f'Jobcard Submitted: {self.object.jobcard_number}',
-                        body=f'Please find attached the jobcard for {self.object.company.name}.',
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        to=[self.object.company.email]
-                    )
-                    email.attach(f'{self.object.jobcard_number}.pdf', pdf_buffer.read(), 'application/pdf')
-                    email.send(fail_silently=True)
-                    messages.success(self.request, "Jobcard submitted and emailed!")
+
+                    to_email = None
+                    if self.object.company and self.object.company.email:
+                        to_email = self.object.company.email
+
+                    if to_email:
+                        email = EmailMessage(
+                            subject=f'Jobcard Submitted: {self.object.jobcard_number}',
+                            body=f'Please find attached the jobcard.',
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            to=[to_email]
+                        )
+                        email.attach(f'{self.object.jobcard_number}.pdf', pdf_buffer.read(), 'application/pdf')
+                        email.send(fail_silently=True)
+                        messages.success(self.request, "Jobcard submitted and emailed!")
+                    else:
+                        messages.success(self.request, "Jobcard submitted successfully! (No email sent, company email missing).")
                 except Exception as e:
-                    messages.warning(self.request, f"Jobcard submitted but email failed: {e}")
+                    messages.warning(self.request, f"Jobcard submitted but email/PDF failed: {e}")
             else:
                  messages.success(self.request, "Jobcard draft saved!")
 
@@ -458,17 +479,24 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             if action == 'submit':
                 try:
                     pdf_buffer = generate_pdf_buffer(self.object)
-                    email = EmailMessage(
-                        subject=f'Jobcard Submitted: {self.object.jobcard_number}',
-                        body=f'Please find attached the jobcard for {self.object.company.name}.',
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        to=[self.object.company.email]
-                    )
-                    email.attach(f'{self.object.jobcard_number}.pdf', pdf_buffer.read(), 'application/pdf')
-                    email.send(fail_silently=True)
-                    messages.success(self.request, "Jobcard submitted and emailed!")
+                    to_email = None
+                    if self.object.company and self.object.company.email:
+                        to_email = self.object.company.email
+
+                    if to_email:
+                        email = EmailMessage(
+                            subject=f'Jobcard Submitted: {self.object.jobcard_number}',
+                            body=f'Please find attached the jobcard.',
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            to=[to_email]
+                        )
+                        email.attach(f'{self.object.jobcard_number}.pdf', pdf_buffer.read(), 'application/pdf')
+                        email.send(fail_silently=True)
+                        messages.success(self.request, "Jobcard submitted and emailed!")
+                    else:
+                        messages.success(self.request, "Jobcard submitted successfully! (No email sent).")
                 except Exception as e:
-                    messages.warning(self.request, f"Jobcard submitted but email failed: {e}")
+                    messages.warning(self.request, f"Jobcard submitted but email/PDF failed: {e}")
             else:
                  messages.success(self.request, "Jobcard updated successfully!")
 
