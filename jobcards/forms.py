@@ -57,11 +57,12 @@ class JobcardForm(forms.ModelForm):
             'company', 'category', 'status',
             'time_start', 'time_stop',
             'tech_name', 'client_name',
-            'manager_notes', 'admin_notes'
+            'tech_notes', 'manager_notes', 'admin_notes'
         ]
         widgets = {
             'time_start': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'time_stop': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'tech_notes': forms.Textarea(attrs={'rows': 3}),
             'manager_notes': forms.Textarea(attrs={'rows': 3}),
             'admin_notes': forms.Textarea(attrs={'rows': 3}),
         }
@@ -114,6 +115,8 @@ class JobcardForm(forms.ModelForm):
                 )
             ),
             'status',
+            HTML("<hr>"),
+            'tech_notes',
             HTML("<hr>"),
             Row(
                 Column('tech_name', css_class='form-group col-md-6'),
