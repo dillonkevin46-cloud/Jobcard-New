@@ -6,20 +6,35 @@
     <title>{% block title %}Jobcard System{% endblock %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <!-- Signature Pad -->
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar-brand { font-weight: bold; }
-        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
-        .jobcard-bg { background-color: #fcf4bd; } /* Subtle yellow for jobcards */
+        body {
+            background-color: #f4f6f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,.08);
+        }
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: none;
+            border-radius: 0.5rem;
+        }
+        .jobcard-bg { background-color: #fcf4bd; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="{% url 'dashboard' %}">Jobcard Sys</a>
+            <a class="navbar-brand" href="{% url 'dashboard' %}"><i class="bi bi-layers-half text-primary me-2"></i>Jobcard Sys</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -27,46 +42,55 @@
                 <ul class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>
+                            <a class="nav-link" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
                         </li>
 
                         {% if user.is_technician or user.is_superuser %}
                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'jobcard_create' %}">New Jobcard</a>
+                                <a class="nav-link" href="{% url 'jobcard_create' %}"><i class="bi bi-plus-circle me-1"></i>New Jobcard</a>
                             </li>
                         {% endif %}
 
                         {% if user.is_manager or user.is_superuser %}
                              <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Manager</a>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="{% url 'user_list' %}">Manage Users</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'company_create' %}">Add Company</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'settings' %}">Settings</a></li>
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-gear me-1"></i>Manager
+                                </a>
+                                <ul class="dropdown-menu shadow-sm border-0">
+                                    <li><a class="dropdown-item" href="{% url 'user_list' %}"><i class="bi bi-people me-2 text-muted"></i>Manage Users</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'company_create' %}"><i class="bi bi-building me-2 text-muted"></i>Add Company</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'settings' %}"><i class="bi bi-sliders me-2 text-muted"></i>Settings</a></li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{% url 'form_designer' %}">Form Designer</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'form_designer' %}"><i class="bi bi-layout-text-window-reverse me-2 text-muted"></i>Form Designer</a></li>
                                 </ul>
                             </li>
                         {% endif %}
 
                         {% if user.is_admin_role or user.is_superuser %}
-                             <li class="nav-item">
-                                <a class="nav-link" href="{% url 'dashboard' %}">Admin Dashboard</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'admin_archive' %}">Jobcard Archive</a>
+                             <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-shield-lock me-1"></i>Admin
+                                </a>
+                                <ul class="dropdown-menu shadow-sm border-0">
+                                    <li><a class="dropdown-item" href="{% url 'dashboard' %}"><i class="bi bi-inboxes me-2 text-muted"></i>Pending Invoices</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'admin_archive' %}"><i class="bi bi-archive me-2 text-muted"></i>Jobcard Archive</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="/admin/" target="_blank"><i class="bi bi-database me-2 text-muted"></i>Django Admin</a></li>
+                                </ul>
                             </li>
                         {% endif %}
 
-                        <li class="nav-item">
+                        <li class="nav-item ms-lg-3">
                              <form action="{% url 'logout' %}" method="post" class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="nav-link btn btn-link" style="text-decoration: none;">Logout ({{ user.username }})</button>
+                                <button type="submit" class="nav-link btn btn-link text-light opacity-75 hover-opacity-100" style="text-decoration: none;">
+                                    <i class="bi bi-box-arrow-right me-1"></i>Logout ({{ user.username }})
+                                </button>
                             </form>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{% url 'login' %}">Login</a>
+                            <a class="nav-link" href="{% url 'login' %}"><i class="bi bi-box-arrow-in-right me-1"></i>Login</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -77,7 +101,9 @@
     <div class="container">
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
+                    {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill me-2"></i>{% endif %}
+                    {% if message.tags == 'error' or message.tags == 'danger' %}<i class="bi bi-exclamation-triangle-fill me-2"></i>{% endif %}
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>

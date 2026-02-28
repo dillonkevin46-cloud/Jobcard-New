@@ -6,28 +6,61 @@
 {% block extra_css %}
 <style>
     .jobcard-container {
-        background-color: #fcf4bd;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        border: 1px solid #e9ecef;
+    }
+    .jobcard-header {
+        background-color: #fcf4bd; /* The requested subtle yellow, used as a top banner */
+        margin: -30px -30px 30px -30px;
+        padding: 20px 30px;
+        border-radius: 12px 12px 0 0;
+        border-bottom: 2px solid #f2e27c;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     .signature-pad-wrapper canvas {
-        width: 100%;
-        height: 100%;
-        display: block;
+        cursor: crosshair;
     }
     .formset-row {
         background-color: #fff;
-        border-bottom: 1px solid #ddd;
+        transition: background-color 0.2s;
     }
+    .formset-row:hover {
+        background-color: #f8f9fa;
+    }
+    .table-input input {
+        border: 1px solid transparent;
+        background: transparent;
+        border-radius: 4px;
+        padding: 4px 8px;
+        width: 100%;
+        transition: border 0.2s, background 0.2s;
+    }
+    .table-input input:focus, .table-input input:hover {
+        border: 1px solid #ced4da;
+        background: #fff;
+        outline: none;
+    }
+    /* Hide crispy labels in table */
+    #items-table label { display: none; }
+    #items-table .mb-3 { margin-bottom: 0 !important; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
+<div class="row justify-content-center mb-5">
+    <div class="col-xl-10">
         <div class="jobcard-container">
-            <h3 class="text-center mb-4">Job Card</h3>
+            <div class="jobcard-header">
+                <h3 class="mb-0 text-dark fw-bold"><i class="bi bi-card-checklist me-2"></i>Job Card</h3>
+                <span class="badge bg-dark rounded-pill px-3 py-2 fs-6 shadow-sm">
+                    {% if jobcard.pk %}{{ jobcard.jobcard_number }}{% else %}New Draft{% endif %}
+                </span>
+            </div>
 
             <form method="post" id="jobcardForm" enctype="multipart/form-data"
                   {% if jobcard.pk %}data-autosave-url="{% url 'jobcard_autosave' jobcard.pk %}"{% endif %}>
@@ -35,33 +68,39 @@
 
                 {% crispy form %}
 
-                <hr>
+                <div class="d-flex justify-content-between align-items-center mt-5 mb-3">
+                    <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-tools me-2"></i>Job Details & Parts Used</h5>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-item-btn">
+                        <i class="bi bi-plus"></i> Add Row
+                    </button>
+                </div>
 
-                <h5 class="mt-4">Job Details / Parts Used</h5>
                 {{ items.management_form }}
 
-                <div class="table-responsive">
-                    <table class="table table-bordered bg-white" id="items-table">
-                        <thead class="table-light">
+                <div class="table-responsive rounded shadow-sm border border-light mb-4">
+                    <table class="table table-borderless align-middle mb-0" id="items-table">
+                        <thead class="table-light text-muted small border-bottom">
                             <tr>
-                                <th style="width: 40%">Description</th>
-                                <th style="width: 30%">Parts Used</th>
+                                <th style="width: 40%">Description of Work</th>
+                                <th style="width: 30%">Parts / Serial No.</th>
                                 <th style="width: 10%">Qty</th>
                                 <th style="width: 15%">Person Helped</th>
-                                <th style="width: 5%">Delete</th>
+                                <th style="width: 5%" class="text-center"><i class="bi bi-trash"></i></th>
                             </tr>
                         </thead>
                         <tbody id="formset-body">
                             {% for form in items %}
-                                <tr class="formset-row">
+                                <tr class="formset-row border-bottom">
                                     {{ form.id }}
-                                    <td>{{ form.description|as_crispy_field }}</td>
-                                    <td>{{ form.parts_used|as_crispy_field }}</td>
-                                    <td>{{ form.qty|as_crispy_field }}</td>
-                                    <td>{{ form.person_helped|as_crispy_field }}</td>
+                                    <td class="table-input">{{ form.description|as_crispy_field }}</td>
+                                    <td class="table-input">{{ form.parts_used|as_crispy_field }}</td>
+                                    <td class="table-input">{{ form.qty|as_crispy_field }}</td>
+                                    <td class="table-input">{{ form.person_helped|as_crispy_field }}</td>
                                     <td class="text-center align-middle">
                                         {% if items.can_delete %}
-                                            {{ form.DELETE }}
+                                            <div class="form-check d-flex justify-content-center">
+                                                {{ form.DELETE }}
+                                            </div>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -69,13 +108,20 @@
                         </tbody>
                     </table>
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm mb-3" id="add-item-btn">Add Row</button>
 
-                <div class="d-grid gap-2 mt-4 d-md-flex justify-content-md-end">
-                     <button type="submit" name="action" value="draft" class="btn btn-primary me-md-2" id="btn-save-draft">Save Draft</button>
-                    <button type="submit" name="action" value="submit" class="btn btn-success" id="btn-submit-final" onclick="return confirm('Are you sure you want to submit? This will lock the jobcard and email the client.');">Submit Jobcard</button>
+                <div class="d-flex align-items-center justify-content-between mt-5 pt-3 border-top">
+                    <div id="autosave-status" class="text-muted small fw-medium">
+                        <i class="bi bi-cloud-check me-1"></i>Ready
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="draft" class="btn btn-light border px-4 shadow-sm" id="btn-save-draft">
+                            Save Draft
+                        </button>
+                        <button type="submit" name="action" value="submit" class="btn btn-primary px-4 shadow" id="btn-submit-final" onclick="return confirm('Submit and email to client? This locks the jobcard.');">
+                            <i class="bi bi-send me-2"></i>Submit & Email
+                        </button>
+                    </div>
                 </div>
-                <div id="autosave-status" class="text-muted text-end mt-1 small"></div>
             </form>
         </div>
     </div>
@@ -106,11 +152,16 @@
         window.addEventListener("resize", resizeCanvas);
         resizeCanvas();
 
-        const pad = new SignaturePad(canvas);
+        const pad = new SignaturePad(canvas, {
+            penColor: "rgb(0, 0, 128)",
+            backgroundColor: "rgba(255, 255, 255, 0)"
+        });
+
         const hiddenInput = document.getElementById(dataFieldId);
 
         pad.addEventListener("endStroke", () => {
              if (hiddenInput) hiddenInput.value = pad.toDataURL();
+             triggerAutosave();
         });
 
         return pad;
@@ -119,22 +170,20 @@
     const techPad = initPad('tech_sig_pad', 'id_tech_signature_data');
     const clientPad = initPad('client_sig_pad', 'id_client_signature_data');
 
-    // Also manager pad if present (though this template is for tech mostly)
-    const managerPad = initPad('manager_sig_pad', 'id_manager_signature_data');
-
     function clearPad(canvasId) {
-        if(canvasId === 'tech_sig_pad' && techPad) techPad.clear();
-        if(canvasId === 'client_sig_pad' && clientPad) clientPad.clear();
-        if(canvasId === 'manager_sig_pad' && managerPad) managerPad.clear();
-
-        // Clear hidden input
-        if(canvasId === 'tech_sig_pad') document.getElementById('id_tech_signature_data').value = '';
-        if(canvasId === 'client_sig_pad') document.getElementById('id_client_signature_data').value = '';
+        if(canvasId === 'tech_sig_pad' && techPad) {
+            techPad.clear();
+            document.getElementById('id_tech_signature_data').value = '';
+        }
+        if(canvasId === 'client_sig_pad' && clientPad) {
+            clientPad.clear();
+            document.getElementById('id_client_signature_data').value = '';
+        }
+        triggerAutosave();
     }
 
     // --- Form Submission ---
     document.getElementById('jobcardForm').addEventListener('submit', function(e) {
-        // Ensure pads are synced to hidden fields before submit
         if (techPad && !techPad.isEmpty()) {
             document.getElementById('id_tech_signature_data').value = techPad.toDataURL();
         }
@@ -156,7 +205,6 @@
         inputs.forEach(input => {
             if(input.type !== 'checkbox') input.value = '';
             if(input.type === 'checkbox') input.checked = false;
-            // Clear ID if it was cloned (critical for new rows to be INSERTs not UPDATEs)
             if(input.name.endsWith('-id')) input.value = '';
         });
 
@@ -173,11 +221,13 @@
         if (!autosaveUrl) return;
 
         clearTimeout(autosaveTimer);
-        document.getElementById('autosave-status').innerText = "Saving...";
+        const statusEl = document.getElementById('autosave-status');
+        statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
+        statusEl.classList.add('text-primary');
+        statusEl.classList.remove('text-muted', 'text-success', 'text-danger');
 
         autosaveTimer = setTimeout(() => {
             const formData = new FormData(form);
-            // Append signatures
             if (techPad && !techPad.isEmpty()) formData.set('tech_signature_data', techPad.toDataURL());
             if (clientPad && !clientPad.isEmpty()) formData.set('client_signature_data', clientPad.toDataURL());
 
@@ -190,24 +240,26 @@
             })
             .then(response => {
                 if (response.ok) {
-                    document.getElementById('autosave-status').innerText = "Saved " + new Date().toLocaleTimeString();
+                    statusEl.innerHTML = '<i class="bi bi-cloud-check-fill me-1"></i>Saved at ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    statusEl.classList.add('text-success');
+                    statusEl.classList.remove('text-primary');
                 } else {
-                    document.getElementById('autosave-status').innerText = "Error saving";
+                    statusEl.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Save Error';
+                    statusEl.classList.add('text-danger');
+                    statusEl.classList.remove('text-primary');
                 }
             })
             .catch(error => {
-                console.error('Autosave error:', error);
-                document.getElementById('autosave-status').innerText = "Error saving";
+                statusEl.innerHTML = '<i class="bi bi-wifi-off me-1"></i>Offline / Error';
+                statusEl.classList.add('text-danger');
+                statusEl.classList.remove('text-primary');
             });
-        }, 2000); // 2 seconds debounce
+        }, 2000);
     }
 
     if (autosaveUrl) {
         form.addEventListener('input', function(e) {
-            // Don't autosave on hidden fields change unless explicitly triggered
-             if (e.target.type !== 'hidden') {
-                triggerAutosave();
-             }
+             if (e.target.type !== 'hidden') triggerAutosave();
         });
     }
 </script>
