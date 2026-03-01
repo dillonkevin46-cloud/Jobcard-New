@@ -56,6 +56,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "jobcards.context_processors.global_settings",
             ],
         },
     },
@@ -136,13 +137,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Email Configuration (Console backend for dev, SMTP for prod)
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-else:
-    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-    EMAIL_HOST = os.environ.get("EMAIL_HOST")
-    EMAIL_PORT = os.environ.get("EMAIL_PORT", 587)
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
-    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+# Email Configuration
+# Using console backend as requested for testing safely
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

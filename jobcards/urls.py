@@ -5,7 +5,7 @@ from .views import (
     ManagerJobcardView, AdminJobcardView, UserListView, UserCreateView,
     CompanyCreateView, SettingsView, JobcardPDFView, JobcardAutosaveView,
     FormDesignerView, SaveTemplateLayoutView, PreviewPDFTemplateView,
-    AdminArchiveListView, CompanyCreateAJAXView
+    AdminArchiveListView, CompanyCreateAJAXView, ResendJobcardEmailView
 )
 
 urlpatterns = [
@@ -27,4 +27,5 @@ urlpatterns = [
     path('manage/designer/', FormDesignerView.as_view(), name='form_designer'),
     path('manage/designer/save/', SaveTemplateLayoutView.as_view(), name='save_template_layout'),
     path('manage/designer/preview/', PreviewPDFTemplateView.as_view(), name='preview_template_layout'),
+    path('manage/resend-email/<int:pk>/', ResendJobcardEmailView.as_view(), name='resend_jobcard_email'),
 ]

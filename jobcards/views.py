@@ -106,7 +106,7 @@ def draw_background(c, doc):
 
     c.restoreState()
 
-def build_pdf_elements(jobcard, is_dummy=False):
+def build_pdf_elements(jobcard, is_dummy=False, tech_only=False):
     elements = []
     styles = getSampleStyleSheet()
 
@@ -265,7 +265,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(KeepTogether(sig_table))
     elements.append(Spacer(1, 20))
 
-    if status in ['APPROVED', 'INVOICED']:
+    if status in ['APPROVED', 'INVOICED'] and not tech_only:
         manager_notes = "Approved. Good work." if is_dummy else jobcard.manager_notes
         manager_sig = None if is_dummy else jobcard.manager_signature
         manager_name = "Boss Man" if is_dummy else jobcard.manager_name
@@ -287,14 +287,14 @@ def build_pdf_elements(jobcard, is_dummy=False):
         elements.append(KeepTogether(man_table))
         elements.append(Spacer(1, 20))
 
-    if status == 'INVOICED':
+    if status == 'INVOICED' and not tech_only:
         admin_notes = "Invoiced #INV-999" if is_dummy else jobcard.admin_notes
         elements.append(Paragraph("Admin Notes:", style_bold))
         elements.append(Paragraph(escape(admin_notes) or "N/A", style_normal))
 
     return elements
 
-def generate_pdf_buffer(jobcard, is_dummy=False):
+def generate_pdf_buffer(jobcard, is_dummy=False, tech_only=False):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -304,7 +304,7 @@ def generate_pdf_buffer(jobcard, is_dummy=False):
         topMargin=40,
         bottomMargin=50
     )
-    elements = build_pdf_elements(jobcard, is_dummy)
+    elements = build_pdf_elements(jobcard, is_dummy, tech_only)
     doc.build(elements, onFirstPage=draw_background, onLaterPages=draw_background)
     buffer.seek(0)
     return buffer
@@ -372,7 +372,6 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
         action = self.request.POST.get('action')
 
-        # Strict Validation Check
         if action == 'submit':
             valid = True
 
@@ -388,14 +387,14 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                             has_items = True
                             break
             else:
-                valid = False # Formset itself is invalid
+                valid = False
 
             if not has_items and valid:
                 messages.error(self.request, "You must add at least one Job Detail before submitting.")
                 valid = False
 
             if not valid:
-                return self.render_to_response(self.get_context_data(form=form, items=items))
+                return self.render_to_response(self.get_context_data(form=form, item_formset=items))
 
         self.object = form.save(commit=False)
         self.object.technician = self.request.user
@@ -420,7 +419,6 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             if action == 'submit':
                 try:
                     pdf_buffer = generate_pdf_buffer(self.object)
-
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
@@ -444,7 +442,7 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
             return redirect(self.success_url)
         else:
-            return self.render_to_response(self.get_context_data(form=form, items=items))
+            return self.render_to_response(self.get_context_data(form=form, item_formset=items))
 
 class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Jobcard
@@ -477,7 +475,6 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
         action = self.request.POST.get('action')
 
-        # Strict Validation Check
         if action == 'submit':
             valid = True
 
@@ -500,7 +497,7 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                 valid = False
 
             if not valid:
-                return self.render_to_response(self.get_context_data(form=form, items=items))
+                return self.render_to_response(self.get_context_data(form=form, item_formset=items))
 
         self.object = form.save(commit=False)
 
@@ -546,7 +543,7 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
             return redirect(self.success_url)
         else:
-            return self.render_to_response(self.get_context_data(form=form, items=items))
+            return self.render_to_response(self.get_context_data(form=form, item_formset=items))
 
 class JobcardAutosaveView(LoginRequiredMixin, View):
     def post(self, request, pk):
@@ -769,3 +766,34 @@ class PreviewPDFTemplateView(LoginRequiredMixin, UserPassesTestMixin, View):
         response = HttpResponse(buffer, content_type='application/pdf')
         response['Content-Disposition'] = 'inline; filename="jobcard_preview.pdf"'
         return response
+
+class ResendJobcardEmailView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.is_admin_role() or self.request.user.is_superuser
+
+    def post(self, request, pk):
+        jobcard = get_object_or_404(Jobcard, pk=pk)
+
+        to_email = None
+        if jobcard.company and jobcard.company.email:
+            to_email = jobcard.company.email
+
+        if not to_email:
+            messages.error(request, "Cannot resend: No company email associated with this jobcard.")
+            return redirect('dashboard')
+
+        try:
+            pdf_buffer = generate_pdf_buffer(jobcard, tech_only=True)
+            email = EmailMessage(
+                subject=f'Jobcard Copy (Tech Version): {jobcard.jobcard_number}',
+                body=f'Please find attached a copy of the jobcard for {jobcard.company.name}.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[to_email]
+            )
+            email.attach(f'{jobcard.jobcard_number}_tech.pdf', pdf_buffer.read(), 'application/pdf')
+            email.send(fail_silently=False)
+            messages.success(request, "Tech-only jobcard successfully sent to client!")
+        except Exception as e:
+            messages.error(request, f"Failed to send email: {e}")
+
+        return redirect('dashboard')
