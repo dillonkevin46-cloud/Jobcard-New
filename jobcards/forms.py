@@ -14,7 +14,7 @@ class UserLoginForm(AuthenticationForm):
         self.helper.layout = Layout(
             'username',
             'password',
-            Submit('submit', 'Login', css_class='btn-primary w-100')
+            Submit('submit', 'Log In', css_class='btn-primary w-100 mt-2 rounded-pill')
         )
 
 class CustomUserCreationForm(UserCreationForm):
@@ -25,7 +25,17 @@ class CustomUserCreationForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Create User'))
+        self.helper.add_input(Submit('submit', 'Create User', css_class='btn-primary w-100'))
+
+class ManagerUserEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'first_name', 'last_name', 'role', 'is_active')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.add_input(Submit('submit', 'Save Changes', css_class='btn-primary w-100'))
 
 class CompanyForm(forms.ModelForm):
     class Meta:
@@ -35,7 +45,7 @@ class CompanyForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Save Company'))
+        self.helper.add_input(Submit('submit', 'Save Company', css_class='btn-primary w-100'))
 
 class GlobalSettingsForm(forms.ModelForm):
     class Meta:
@@ -45,7 +55,7 @@ class GlobalSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Save Settings'))
+        self.helper.add_input(Submit('submit', 'Save Settings', css_class='btn-primary w-100'))
 
 class JobcardForm(forms.ModelForm):
     # Hidden fields to store Base64 signature data
@@ -84,20 +94,18 @@ class JobcardForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        # If user is a technician, they shouldn't edit manager/admin fields
         if user and user.is_technician():
             self.fields['manager_notes'].disabled = True
             self.fields['admin_notes'].disabled = True
             self.fields['status'].widget = forms.HiddenInput()
 
-        # Check existing signatures
         tech_sig_html = ""
         if self.instance.pk and self.instance.tech_signature:
-             tech_sig_html = f'<div class="mb-2"><img src="{self.instance.tech_signature.url}" height="50" style="border:1px solid #ccc;"> <span class="text-muted small">Current Signature</span></div>'
+             tech_sig_html = f'<div class="mb-2"><img src="{self.instance.tech_signature.url}" height="50" style="border:1px solid #ccc; border-radius: 4px;"> <span class="text-muted small ms-2">Current Signature</span></div>'
 
         client_sig_html = ""
         if self.instance.pk and self.instance.client_signature:
-             client_sig_html = f'<div class="mb-2"><img src="{self.instance.client_signature.url}" height="50" style="border:1px solid #ccc;"> <span class="text-muted small">Current Signature</span></div>'
+             client_sig_html = f'<div class="mb-2"><img src="{self.instance.client_signature.url}" height="50" style="border:1px solid #ccc; border-radius: 4px;"> <span class="text-muted small ms-2">Current Signature</span></div>'
 
         self.helper = FormHelper()
         self.helper.form_tag = False
@@ -107,8 +115,8 @@ class JobcardForm(forms.ModelForm):
                 Column(
                     HTML("""
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label for="id_company" class="form-label mb-0">Company</label>
-                            <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-2" data-bs-toggle="modal" data-bs-target="#createCompanyModal" style="font-size: 0.75rem;"><i class="bi bi-plus"></i> Add New</button>
+                            <label for="id_company" class="form-label mb-0 fw-semibold text-secondary small">COMPANY</label>
+                            <button type="button" class="btn btn-sm btn-light p-0 px-2 border" data-bs-toggle="modal" data-bs-target="#createCompanyModal" style="font-size: 0.75rem;"><i class="bi bi-plus"></i> New</button>
                         </div>
                     """),
                     Field('company'),
@@ -121,7 +129,7 @@ class JobcardForm(forms.ModelForm):
                 Column(
                     Row(
                         Column('time_start', css_class='col-sm-8 mb-2'),
-                        Column(HTML("""<button type="button" class="btn btn-success btn-sm w-100 mt-md-4" onclick="setDateTime('id_time_start')"><i class="bi bi-play-circle"></i> Start Now</button>"""), css_class='col-sm-4'),
+                        Column(HTML("""<button type="button" class="btn btn-success btn-sm w-100 mt-md-4 shadow-sm" onclick="setDateTime('id_time_start')"><i class="bi bi-play-circle me-1"></i>Start</button>"""), css_class='col-sm-4'),
                         css_class='align-items-start'
                     ),
                     css_class='form-group col-md-6 mb-3'
@@ -129,18 +137,17 @@ class JobcardForm(forms.ModelForm):
                 Column(
                      Row(
                         Column('time_stop', css_class='col-sm-8 mb-2'),
-                        Column(HTML("""<button type="button" class="btn btn-danger btn-sm w-100 mt-md-4" onclick="setDateTime('id_time_stop')"><i class="bi bi-stop-circle"></i> Stop Now</button>"""), css_class='col-sm-4'),
+                        Column(HTML("""<button type="button" class="btn btn-danger btn-sm w-100 mt-md-4 shadow-sm" onclick="setDateTime('id_time_stop')"><i class="bi bi-stop-circle me-1"></i>Stop</button>"""), css_class='col-sm-4'),
                         css_class='align-items-start'
                     ),
                     css_class='form-group col-md-6 mb-3'
                 ),
                 css_class='form-row'
             ),
-            # Note: Items table will be injected here via template HTML, not crispy Layout
             'status',
-            HTML("<hr class='my-4' id='tech-notes-divider'>"),
+            HTML("<hr class='my-4 border-secondary opacity-25' id='tech-notes-divider'>"),
             'tech_notes',
-            HTML("<hr class='my-4'>"),
+            HTML("<hr class='my-4 border-secondary opacity-25'>"),
             Row(
                 Column('tech_name', css_class='form-group col-md-6 mb-3'),
                 Column('client_name', css_class='form-group col-md-6 mb-3'),
@@ -148,22 +155,22 @@ class JobcardForm(forms.ModelForm):
             Row(
                  Column(
                     HTML(f"""
-                        <label class="form-label fw-bold">Technician Signature</label>
+                        <label class="form-label fw-bold text-secondary">Technician Signature</label>
                         {tech_sig_html}
-                        <div class="signature-pad-wrapper bg-white shadow-sm border border-2 border-primary rounded-3 p-2 mb-2" style="position: relative;">
-                            <canvas id="tech_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none;"></canvas>
-                            <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1" onclick="clearPad('tech_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
+                        <div class="signature-pad-wrapper bg-white shadow-sm border border-primary rounded-3 p-1 mb-2 position-relative">
+                            <canvas id="tech_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none; cursor: crosshair;"></canvas>
+                            <button type="button" class="btn btn-sm btn-light border position-absolute top-0 end-0 m-2 rounded-circle" onclick="clearPad('tech_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
                         </div>
                     """),
-                    css_class='col-md-6'
+                    css_class='col-md-6 mb-4 mb-md-0'
                 ),
                 Column(
                     HTML(f"""
-                        <label class="form-label fw-bold">Client Signature</label>
+                        <label class="form-label fw-bold text-secondary">Client Signature</label>
                         {client_sig_html}
-                        <div class="signature-pad-wrapper bg-white shadow-sm border border-2 border-primary rounded-3 p-2 mb-2" style="position: relative;">
-                            <canvas id="client_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none;"></canvas>
-                             <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1" onclick="clearPad('client_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
+                        <div class="signature-pad-wrapper bg-white shadow-sm border border-primary rounded-3 p-1 mb-2 position-relative">
+                            <canvas id="client_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none; cursor: crosshair;"></canvas>
+                             <button type="button" class="btn btn-sm btn-light border position-absolute top-0 end-0 m-2 rounded-circle" onclick="clearPad('client_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
                         </div>
                     """),
                     css_class='col-md-6'
@@ -171,7 +178,7 @@ class JobcardForm(forms.ModelForm):
             ),
             'tech_signature_data',
             'client_signature_data',
-            HTML("<hr class='my-4'>"),
+            HTML("<hr class='my-4 border-secondary opacity-25'>"),
             'manager_notes',
             'admin_notes',
         )
@@ -194,21 +201,21 @@ class ManagerActionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
         self.helper.form_id = 'managerActionForm'
-        self.helper.add_input(Submit('submit', 'Approve & Sign', css_class='btn-success btn-lg w-100 mt-3'))
+        self.helper.add_input(Submit('submit', 'Approve & Sign', css_class='btn-success btn-lg w-100 mt-3 rounded-pill shadow-sm'))
 
         manager_sig_html = ""
         if self.instance.pk and self.instance.manager_signature:
-             manager_sig_html = f'<div class="mb-2"><img src="{self.instance.manager_signature.url}" height="50" style="border:1px solid #ccc;"> <span class="text-muted small">Current Signature</span></div>'
+             manager_sig_html = f'<div class="mb-2"><img src="{self.instance.manager_signature.url}" height="50" style="border:1px solid #ccc; border-radius: 4px;"> <span class="text-muted small ms-2">Current Signature</span></div>'
 
         self.helper.layout = Layout(
             'manager_notes',
             'manager_name',
             HTML(f"""
-                <label class="form-label fw-bold mt-3">Manager Signature</label>
+                <label class="form-label fw-bold text-secondary mt-3">Manager Signature</label>
                 {manager_sig_html}
-                <div class="signature-pad-wrapper bg-white shadow-sm border border-2 border-success rounded-3 p-2 mb-2" style="position: relative;">
-                    <canvas id="manager_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none;"></canvas>
-                    <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1" onclick="clearPad('manager_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
+                <div class="signature-pad-wrapper bg-white shadow-sm border border-success rounded-3 p-1 mb-2 position-relative">
+                    <canvas id="manager_sig_pad" width=300 height=150 style="width: 100%; height: 150px; touch-action: none; cursor: crosshair;"></canvas>
+                    <button type="button" class="btn btn-sm btn-light border position-absolute top-0 end-0 m-2 rounded-circle" onclick="clearPad('manager_sig_pad')" title="Clear"><i class="bi bi-eraser"></i></button>
                 </div>
             """),
             'manager_signature_data',
@@ -223,4 +230,4 @@ class AdminActionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.helper = FormHelper()
-        self.helper.add_input(Submit('submit', 'Update Status / Invoice', css_class='btn-primary btn-lg w-100'))
+        self.helper.add_input(Submit('submit', 'Update Status / Invoice', css_class='btn-primary btn-lg w-100 rounded-pill shadow-sm'))

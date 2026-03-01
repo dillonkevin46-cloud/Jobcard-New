@@ -6,7 +6,7 @@ from html import escape
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import TemplateView, CreateView, UpdateView, ListView, View
+from django.views.generic import TemplateView, CreateView, UpdateView, ListView, View, DeleteView
 from django.urls import reverse_lazy
 from django.contrib import messages
 from django.core.files.base import ContentFile
@@ -27,7 +27,7 @@ from reportlab.lib.utils import ImageReader
 
 from .models import User, Jobcard, JobcardItem, Company, GlobalSettings, PDFTemplateElement
 from .forms import (
-    UserLoginForm, CustomUserCreationForm, CompanyForm, GlobalSettingsForm,
+    UserLoginForm, CustomUserCreationForm, ManagerUserEditForm, CompanyForm, GlobalSettingsForm,
     JobcardForm, JobcardItemFormSet, ManagerActionForm, AdminActionForm
 )
 
@@ -62,18 +62,16 @@ def setup_default_template_elements():
         for d in defaults:
             PDFTemplateElement.objects.create(**d)
 
-# --- PDF GENERATOR (Bulletproof Flowable Version) ---
+# --- PDF GENERATOR ---
 
 def draw_background(c, doc):
     c.saveState()
     width, height = A4
 
-    # 1. Border
     c.setStrokeColorRGB(0.2, 0.2, 0.2)
     c.setLineWidth(1)
     c.rect(20, 20, width - 40, height - 40)
 
-    # 2. Watermark
     settings_obj = GlobalSettings.objects.first()
     watermark_img = None
     if settings_obj:
@@ -99,11 +97,9 @@ def draw_background(c, doc):
             print(f"Watermark error: {e}")
             c.restoreState()
 
-    # 3. Page Number
     c.setFont("Helvetica", 9)
     c.setFillColorRGB(0.5, 0.5, 0.5)
     c.drawRightString(width - 30, 30, f"Page {doc.page}")
-
     c.restoreState()
 
 def build_pdf_elements(jobcard, is_dummy=False, tech_only=False):
@@ -419,6 +415,7 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
             if action == 'submit':
                 try:
                     pdf_buffer = generate_pdf_buffer(self.object)
+
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
@@ -658,6 +655,31 @@ class UserCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def test_func(self):
         return self.request.user.is_manager() or self.request.user.is_superuser
+
+class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = User
+    form_class = ManagerUserEditForm
+    template_name = 'user_form.html'
+    success_url = reverse_lazy('user_list')
+
+    def test_func(self):
+        return self.request.user.is_manager() or self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, "User updated successfully.")
+        return super().form_valid(form)
+
+class UserDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = User
+    template_name = 'user_confirm_delete.html'
+    success_url = reverse_lazy('user_list')
+
+    def test_func(self):
+        return self.request.user.is_manager() or self.request.user.is_superuser
+
+    def form_valid(self, form):
+        messages.success(self.request, "User deleted successfully.")
+        return super().form_valid(form)
 
 class CompanyCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = Company

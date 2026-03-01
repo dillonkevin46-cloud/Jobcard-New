@@ -11,10 +11,19 @@
     <!-- Signature Pad -->
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <style>
+        :root {
+            --primary-slate: #1e293b;
+            --secondary-slate: #0f172a;
+            --light-grey: #f1f5f9;
+            --text-light: #94a3b8;
+            --text-white: #f8fafc;
+        }
+
         body {
-            background-color: #f4f6f9;
+            background-color: var(--light-grey);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             overflow-x: hidden;
+            margin: 0;
         }
 
         /* Flexbox Layout */
@@ -26,67 +35,71 @@
 
         /* Sidebar Styling */
         #sidebar {
-            width: 250px;
-            background-color: #212529; /* Dark theme */
-            color: #fff;
-            transition: all 0.3s ease;
+            width: 260px;
+            background-color: var(--primary-slate);
+            color: var(--text-white);
+            transition: transform 0.3s ease-in-out;
             display: flex;
             flex-direction: column;
-            z-index: 1000;
-        }
-
-        #sidebar.collapsed {
-            margin-left: -250px;
+            z-index: 1050;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.1);
         }
 
         #sidebar .sidebar-header {
-            padding: 20px;
-            background-color: #1a1e21;
+            padding: 24px 20px;
+            background-color: var(--secondary-slate);
             font-size: 1.25rem;
             font-weight: 700;
             letter-spacing: -0.5px;
             text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
         #sidebar .sidebar-header img {
-            max-height: 50px;
+            max-height: 40px;
             max-width: 100%;
         }
 
         #sidebar .nav-link {
-            color: rgba(255,255,255,0.75);
-            padding: 12px 20px;
-            font-size: 1rem;
-            transition: color 0.2s, background-color 0.2s;
+            color: var(--text-light);
+            padding: 14px 24px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
         }
 
         #sidebar .nav-link:hover, #sidebar .nav-link.active {
             color: #fff;
-            background-color: rgba(255,255,255,0.1);
+            background-color: rgba(255,255,255,0.05);
+            border-left-color: #3b82f6;
         }
 
         #sidebar .nav-link i {
-            margin-right: 10px;
+            margin-right: 12px;
             font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
         }
 
         #sidebar .dropdown-menu {
-            background-color: #2c3136;
+            background-color: rgba(0,0,0,0.15);
             border: none;
-            padding: 0;
+            padding: 5px 0;
             margin: 0;
             border-radius: 0;
         }
 
         #sidebar .dropdown-item {
-            color: rgba(255,255,255,0.7);
-            padding: 10px 20px 10px 45px; /* Indent sub-items */
-            font-size: 0.9rem;
+            color: var(--text-light);
+            padding: 10px 20px 10px 52px;
+            font-size: 0.85rem;
+            transition: color 0.2s;
         }
 
         #sidebar .dropdown-item:hover {
             color: #fff;
-            background-color: rgba(255,255,255,0.1);
+            background-color: rgba(255,255,255,0.05);
         }
 
         /* Main Content Styling */
@@ -94,28 +107,32 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            min-width: 0; /* Important for flexbox text truncation */
-            transition: all 0.3s ease;
+            min-width: 0;
+            transition: margin-left 0.3s ease-in-out;
         }
 
         /* Header Bar (Top of Main Content) */
         #top-header {
             background-color: #fff;
-            box-shadow: 0 2px 4px rgba(0,0,0,.04);
-            padding: 15px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+            padding: 15px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            z-index: 1000;
         }
 
         #menu-toggle {
             background: none;
             border: none;
             font-size: 1.5rem;
-            color: #495057;
+            color: var(--primary-slate);
             cursor: pointer;
             padding: 0;
+            transition: color 0.2s;
         }
+
+        #menu-toggle:hover { color: #3b82f6; }
 
         /* Main Body Area */
         #main-body {
@@ -123,22 +140,65 @@
             padding: 30px;
         }
 
-        /* Footer */
-        #main-footer {
+        /* Card Overrides */
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: none;
+            border-radius: 0.75rem;
             background-color: #fff;
-            border-top: 1px solid #e9ecef;
-            margin-top: auto; /* Push to bottom */
         }
 
-        /* Mobile Responsiveness */
+        .card-header {
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            background-color: #fff;
+            border-radius: 0.75rem 0.75rem 0 0 !important;
+            padding: 1rem 1.25rem;
+        }
+
+        /* Footer */
+        #main-footer {
+            background-color: transparent;
+            margin-top: auto;
+        }
+
+        /* Mobile Backdrop Overlay */
+        #sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(15, 23, 42, 0.6);
+            z-index: 1040;
+            backdrop-filter: blur(2px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Responsive Logic */
         @media (max-width: 768px) {
             #sidebar {
-                margin-left: -250px; /* Hidden by default on mobile */
-                position: absolute;
+                position: fixed;
                 height: 100vh;
+                transform: translateX(-100%);
             }
+
+            #sidebar.mobile-show {
+                transform: translateX(0);
+            }
+
+            #sidebar-overlay.mobile-show {
+                display: block;
+                opacity: 1;
+            }
+
+            #main-body {
+                padding: 15px;
+            }
+        }
+
+        /* Desktop Collapse Logic */
+        @media (min-width: 769px) {
             #sidebar.collapsed {
-                margin-left: 0; /* Show when toggled on mobile */
+                margin-left: -260px;
             }
         }
     </style>
@@ -146,12 +206,14 @@
 </head>
 <body>
 
+    <div id="sidebar-overlay"></div>
+
     <div id="wrapper">
         <!-- Sidebar -->
         <nav id="sidebar">
             <div class="sidebar-header">
                 {% if global_settings and global_settings.company_logo %}
-                    <img src="{{ global_settings.company_logo.url }}" alt="Company Logo" class="img-fluid">
+                    <img src="{{ global_settings.company_logo.url }}" alt="Company Logo">
                 {% else %}
                     <i class="bi bi-layers-half text-primary me-2"></i>Jobcard Sys
                 {% endif %}
@@ -177,14 +239,14 @@
                         <li class="nav-item">
                             <a class="nav-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#managerSubmenu" role="button" aria-expanded="false" aria-controls="managerSubmenu">
                                 <span><i class="bi bi-gear"></i>Manager</span>
-                                <i class="bi bi-chevron-down ms-auto" style="font-size: 0.8rem;"></i>
+                                <i class="bi bi-chevron-down" style="font-size: 0.75rem;"></i>
                             </a>
                             <div class="collapse" id="managerSubmenu">
                                 <ul class="nav flex-column dropdown-menu position-static d-block">
-                                    <li><a class="dropdown-item" href="{% url 'user_list' %}"><i class="bi bi-people me-2"></i>Manage Users</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'company_create' %}"><i class="bi bi-building me-2"></i>Add Company</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'settings' %}"><i class="bi bi-sliders me-2"></i>Settings</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'form_designer' %}"><i class="bi bi-layout-text-window-reverse me-2"></i>Form Designer</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'user_list' %}">Manage Users</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'company_create' %}">Add Company</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'settings' %}">Global Settings</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'form_designer' %}">PDF Designer</a></li>
                                 </ul>
                             </div>
                         </li>
@@ -194,25 +256,25 @@
                         <li class="nav-item">
                             <a class="nav-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminSubmenu" role="button" aria-expanded="false" aria-controls="adminSubmenu">
                                 <span><i class="bi bi-shield-lock"></i>Admin</span>
-                                <i class="bi bi-chevron-down ms-auto" style="font-size: 0.8rem;"></i>
+                                <i class="bi bi-chevron-down" style="font-size: 0.75rem;"></i>
                             </a>
                             <div class="collapse" id="adminSubmenu">
                                 <ul class="nav flex-column dropdown-menu position-static d-block">
-                                    <li><a class="dropdown-item" href="{% url 'dashboard' %}"><i class="bi bi-inboxes me-2"></i>Pending Invoices</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'admin_archive' %}"><i class="bi bi-archive me-2"></i>Jobcard Archive</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'dashboard' %}">Pending Invoices</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'admin_archive' %}">Jobcard Archive</a></li>
                                     {% if user.is_superuser %}
-                                        <li><a class="dropdown-item" href="/admin/" target="_blank"><i class="bi bi-database me-2"></i>Django Admin</a></li>
+                                        <li><a class="dropdown-item" href="/admin/" target="_blank">Django Admin <i class="bi bi-box-arrow-up-right ms-1 small"></i></a></li>
                                     {% endif %}
                                 </ul>
                             </div>
                         </li>
                     {% endif %}
 
-                    <li class="nav-item mt-4">
-                        <form action="{% url 'logout' %}" method="post" class="px-3">
+                    <li class="nav-item mt-4 px-3 mb-4">
+                        <form action="{% url 'logout' %}" method="post">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-light w-100 text-start">
-                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            <button type="submit" class="btn btn-outline-danger w-100 text-start border-0" style="background-color: rgba(239, 68, 68, 0.1);">
+                                <i class="bi bi-box-arrow-right me-2"></i>Sign Out
                             </button>
                         </form>
                     </li>
@@ -230,12 +292,15 @@
         <div id="page-content-wrapper">
             <!-- Top Header -->
             <header id="top-header">
-                <button id="menu-toggle">
+                <button id="menu-toggle" aria-label="Toggle Navigation">
                     <i class="bi bi-list"></i>
                 </button>
                 <div class="d-flex align-items-center">
                     {% if user.is_authenticated %}
-                        <span class="text-muted"><i class="bi bi-person-circle me-2"></i>{{ user.username }}</span>
+                        <div class="d-flex align-items-center text-secondary">
+                            <i class="bi bi-person-circle fs-4 me-2 text-primary"></i>
+                            <span class="fw-medium">{{ user.get_full_name|default:user.username }}</span>
+                        </div>
                     {% endif %}
                 </div>
             </header>
@@ -244,11 +309,11 @@
             <main id="main-body" class="container-fluid">
                 {% if messages %}
                     {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
-                            {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill me-2"></i>{% endif %}
-                            {% if message.tags == 'error' or message.tags == 'danger' %}<i class="bi bi-exclamation-triangle-fill me-2"></i>{% endif %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0" role="alert">
+                            {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill me-2 text-success"></i>{% endif %}
+                            {% if message.tags == 'error' or message.tags == 'danger' %}<i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>{% endif %}
                             {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -268,8 +333,33 @@
 
     <!-- Sidebar Toggle Script -->
     <script>
-        document.getElementById('menu-toggle').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+
+        function toggleSidebar() {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-show');
+                overlay.classList.toggle('mobile-show');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        }
+
+        menuToggle.addEventListener('click', toggleSidebar);
+
+        // Close on overlay click (mobile)
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('mobile-show');
+            overlay.classList.remove('mobile-show');
+        });
+
+        // Handle window resize cleanly
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-show');
+                overlay.classList.remove('mobile-show');
+            }
         });
     </script>
 

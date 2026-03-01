@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirm Delete User{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-danger bg-opacity-10 text-danger border-0 py-3 text-center rounded-top-4">
+                <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+                <h4 class="mb-0 mt-2 fw-bold">Delete User?</h4>
+            </div>
+            <div class="card-body p-4 text-center">
+                <p class="mb-4">Are you absolutely sure you want to permanently delete the user <strong>{{ object.username }}</strong>? This action cannot be undone.</p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2 justify-content-center">
+                        <a href="{% url 'user_list' %}" class="btn btn-light border px-4 shadow-sm">Cancel</a>
+                        <button type="submit" class="btn btn-danger px-4 shadow-sm">Yes, Delete User</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-white border-0 text-center text-muted small pb-4">
+                Alternatively, you can edit the user and mark them as <strong>Inactive</strong> to preserve their history.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
