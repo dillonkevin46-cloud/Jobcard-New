@@ -14,7 +14,6 @@ class UserLoginForm(AuthenticationForm):
         self.helper.layout = Layout(
             'username',
             'password',
-            Submit('submit', 'Log In', css_class='btn-primary w-100 mt-2 rounded-pill')
         )
 
 class CustomUserCreationForm(UserCreationForm):
