@@ -11,78 +11,58 @@
     <!-- Signature Pad -->
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
     <style>
-        :root {
-            --primary-slate: #1e293b;
-            --secondary-slate: #0f172a;
-            --light-grey: #f1f5f9;
-            --text-light: #94a3b8;
-            --text-white: #f8fafc;
-        }
+        /* Exact Requested CSS Theme */
+        body { background-color: #f1f5f9; font-family: 'Segoe UI', system-ui, sans-serif; } /* Light Cool Grey Background */
+        .sidebar { background-color: #1e293b; color: #ffffff; min-height: 100vh; transition: all 0.3s; z-index: 1050; } /* Dark Slate Blue */
+        .sidebar .nav-link { color: #cbd5e1; border-radius: 0.375rem; margin-bottom: 0.25rem; padding: 0.75rem 1rem; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #ffffff; background-color: #334155; }
+        .top-navbar { background-color: #0f172a !important; } /* Darker Blue for top bar */
+        .card { border: none; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .btn-primary { background-color: #2563eb; border-color: #2563eb; }
+        .btn-primary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+        .table-dark-header { background-color: #1e293b !important; color: white; }
 
-        body {
-            background-color: var(--light-grey);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            overflow-x: hidden;
-            margin: 0;
-        }
-
-        /* Flexbox Layout */
+        /* Layout Structure CSS */
         #wrapper {
             display: flex;
             min-height: 100vh;
             width: 100vw;
+            overflow-x: hidden;
         }
 
-        /* Sidebar Styling */
-        #sidebar {
+        .sidebar {
             width: 260px;
-            background-color: var(--primary-slate);
-            color: var(--text-white);
-            transition: transform 0.3s ease-in-out;
             display: flex;
             flex-direction: column;
-            z-index: 1050;
             box-shadow: 2px 0 8px rgba(0,0,0,0.1);
         }
 
-        #sidebar .sidebar-header {
+        .sidebar.collapsed {
+            margin-left: -260px;
+        }
+
+        .sidebar .sidebar-header {
             padding: 24px 20px;
-            background-color: var(--secondary-slate);
+            background-color: #0f172a;
             font-size: 1.25rem;
             font-weight: 700;
-            letter-spacing: -0.5px;
             text-align: center;
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
-        #sidebar .sidebar-header img {
+        .sidebar .sidebar-header img {
             max-height: 40px;
             max-width: 100%;
         }
 
-        #sidebar .nav-link {
-            color: var(--text-light);
-            padding: 14px 24px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-            border-left: 3px solid transparent;
-        }
-
-        #sidebar .nav-link:hover, #sidebar .nav-link.active {
-            color: #fff;
-            background-color: rgba(255,255,255,0.05);
-            border-left-color: #3b82f6;
-        }
-
-        #sidebar .nav-link i {
+        .sidebar .nav-link i {
             margin-right: 12px;
             font-size: 1.1rem;
             width: 20px;
             text-align: center;
         }
 
-        #sidebar .dropdown-menu {
+        .sidebar .dropdown-menu {
             background-color: rgba(0,0,0,0.15);
             border: none;
             padding: 5px 0;
@@ -90,15 +70,15 @@
             border-radius: 0;
         }
 
-        #sidebar .dropdown-item {
-            color: var(--text-light);
+        .sidebar .dropdown-item {
+            color: #cbd5e1;
             padding: 10px 20px 10px 52px;
             font-size: 0.85rem;
             transition: color 0.2s;
         }
 
-        #sidebar .dropdown-item:hover {
-            color: #fff;
+        .sidebar .dropdown-item:hover {
+            color: #ffffff;
             background-color: rgba(255,255,255,0.05);
         }
 
@@ -111,10 +91,8 @@
             transition: margin-left 0.3s ease-in-out;
         }
 
-        /* Header Bar (Top of Main Content) */
         #top-header {
-            background-color: #fff;
-            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,.1);
             padding: 15px 24px;
             display: flex;
             align-items: center;
@@ -126,26 +104,17 @@
             background: none;
             border: none;
             font-size: 1.5rem;
-            color: var(--primary-slate);
+            color: #ffffff;
             cursor: pointer;
             padding: 0;
             transition: color 0.2s;
         }
 
-        #menu-toggle:hover { color: #3b82f6; }
+        #menu-toggle:hover { color: #94a3b8; }
 
-        /* Main Body Area */
         #main-body {
             flex-grow: 1;
             padding: 30px;
-        }
-
-        /* Card Overrides */
-        .card {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            border: none;
-            border-radius: 0.75rem;
-            background-color: #fff;
         }
 
         .card-header {
@@ -153,12 +122,6 @@
             background-color: #fff;
             border-radius: 0.75rem 0.75rem 0 0 !important;
             padding: 1rem 1.25rem;
-        }
-
-        /* Footer */
-        #main-footer {
-            background-color: transparent;
-            margin-top: auto;
         }
 
         /* Mobile Backdrop Overlay */
@@ -175,13 +138,13 @@
 
         /* Responsive Logic */
         @media (max-width: 768px) {
-            #sidebar {
+            .sidebar {
                 position: fixed;
                 height: 100vh;
                 transform: translateX(-100%);
             }
 
-            #sidebar.mobile-show {
+            .sidebar.mobile-show {
                 transform: translateX(0);
             }
 
@@ -195,9 +158,8 @@
             }
         }
 
-        /* Desktop Collapse Logic */
         @media (min-width: 769px) {
-            #sidebar.collapsed {
+            .sidebar.collapsed {
                 margin-left: -260px;
             }
         }
@@ -210,7 +172,7 @@
 
     <div id="wrapper">
         <!-- Sidebar -->
-        <nav id="sidebar">
+        <nav id="sidebar" class="sidebar">
             <div class="sidebar-header">
                 {% if global_settings and global_settings.company_logo %}
                     <img src="{{ global_settings.company_logo.url }}" alt="Company Logo">
@@ -219,7 +181,7 @@
                 {% endif %}
             </div>
 
-            <ul class="nav flex-column mb-auto mt-3">
+            <ul class="nav flex-column mb-auto mt-3 px-2">
                 {% if user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'dashboard' %}">
@@ -252,7 +214,7 @@
                         </li>
                     {% endif %}
 
-                    {% if user.is_admin_role or user.is_superuser %}
+                    {% if user.is_superuser %}
                         <li class="nav-item">
                             <a class="nav-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminSubmenu" role="button" aria-expanded="false" aria-controls="adminSubmenu">
                                 <span><i class="bi bi-shield-lock"></i>Admin</span>
@@ -262,18 +224,16 @@
                                 <ul class="nav flex-column dropdown-menu position-static d-block">
                                     <li><a class="dropdown-item" href="{% url 'dashboard' %}">Pending Invoices</a></li>
                                     <li><a class="dropdown-item" href="{% url 'admin_archive' %}">Jobcard Archive</a></li>
-                                    {% if user.is_superuser %}
-                                        <li><a class="dropdown-item" href="/admin/" target="_blank">Django Admin <i class="bi bi-box-arrow-up-right ms-1 small"></i></a></li>
-                                    {% endif %}
+                                    <li><a class="dropdown-item" href="/admin/" target="_blank">Django Admin <i class="bi bi-box-arrow-up-right ms-1 small"></i></a></li>
                                 </ul>
                             </div>
                         </li>
                     {% endif %}
 
-                    <li class="nav-item mt-4 px-3 mb-4">
+                    <li class="nav-item mt-4 mb-4">
                         <form action="{% url 'logout' %}" method="post">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-danger w-100 text-start border-0" style="background-color: rgba(239, 68, 68, 0.1);">
+                            <button type="submit" class="nav-link w-100 text-start border-0 text-danger" style="background-color: transparent;">
                                 <i class="bi bi-box-arrow-right me-2"></i>Sign Out
                             </button>
                         </form>
@@ -291,14 +251,14 @@
         <!-- Main Content -->
         <div id="page-content-wrapper">
             <!-- Top Header -->
-            <header id="top-header">
+            <header id="top-header" class="top-navbar">
                 <button id="menu-toggle" aria-label="Toggle Navigation">
                     <i class="bi bi-list"></i>
                 </button>
                 <div class="d-flex align-items-center">
                     {% if user.is_authenticated %}
-                        <div class="d-flex align-items-center text-secondary">
-                            <i class="bi bi-person-circle fs-4 me-2 text-primary"></i>
+                        <div class="d-flex align-items-center text-white">
+                            <i class="bi bi-person-circle fs-4 me-2"></i>
                             <span class="fw-medium">{{ user.get_full_name|default:user.username }}</span>
                         </div>
                     {% endif %}
@@ -322,7 +282,7 @@
             </main>
 
             <!-- Footer -->
-            <footer id="main-footer" class="text-center py-3 text-muted small">
+            <footer id="main-footer" class="text-center py-3 text-muted small mt-auto border-top">
                 Powered By AgileOrbit Software | Version 1.0
             </footer>
         </div>
