@@ -109,7 +109,6 @@ class Jobcard(models.Model):
     # Names for signatures
     tech_name = models.CharField(max_length=100, blank=True)
     client_name = models.CharField(max_length=100, blank=True)
-    client_email = models.EmailField(blank=True)
     manager_name = models.CharField(max_length=100, blank=True)
 
     tech_notes = models.TextField(blank=True)

@@ -68,16 +68,17 @@
 
                 {% crispy form %}
 
-                <div class="d-flex justify-content-between align-items-center mt-5 mb-3">
-                    <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-tools me-2"></i>Job Details & Parts Used</h5>
-                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-item-btn">
-                        <i class="bi bi-plus"></i> Add Row
-                    </button>
-                </div>
+                <!-- Items Formset injected via JS logic into the designated spot (after Time sections) -->
 
                 {{ items.management_form }}
 
-                <div class="table-responsive rounded shadow-sm border border-light mb-4">
+                <div id="items-table-container" class="table-responsive rounded shadow-sm border border-light mb-4 mt-4 d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+                        <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-tools me-2"></i>Job Details & Parts Used</h5>
+                        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-item-btn">
+                            <i class="bi bi-plus"></i> Add Row
+                        </button>
+                    </div>
                     <table class="table table-borderless align-middle mb-0" id="items-table">
                         <thead class="table-light text-muted small border-bottom">
                             <tr>
@@ -126,10 +127,58 @@
         </div>
     </div>
 </div>
+
+<!-- Create Company Modal -->
+<div class="modal fade" id="createCompanyModal" tabindex="-1" aria-labelledby="createCompanyModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="createCompanyModalLabel"><i class="bi bi-building me-2"></i>Create New Company</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-error" class="alert alert-danger d-none"></div>
+        <form id="ajaxCompanyForm">
+            <div class="mb-3">
+                <label for="comp_name" class="form-label">Company Name *</label>
+                <input type="text" class="form-control" id="comp_name" required>
+            </div>
+            <div class="mb-3">
+                <label for="comp_email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="comp_email">
+            </div>
+            <div class="mb-3">
+                <label for="comp_contact" class="form-label">Contact Number</label>
+                <input type="text" class="form-control" id="comp_contact">
+            </div>
+            <div class="mb-3">
+                <label for="comp_address" class="form-label">Address</label>
+                <textarea class="form-control" id="comp_address" rows="2"></textarea>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-save-company">Save Company</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    // --- Layout Reorder ---
+    // Move items table below time sections before tech notes
+    document.addEventListener("DOMContentLoaded", function() {
+        const itemsContainer = document.getElementById('items-table-container');
+        const insertTarget = document.getElementById('div_id_status') ? document.getElementById('div_id_status').parentNode : null;
+        if(itemsContainer && insertTarget) {
+            insertTarget.parentNode.insertBefore(itemsContainer, insertTarget);
+            itemsContainer.classList.remove('d-none');
+        }
+    });
+
     // --- Time Tracking ---
     function setDateTime(fieldId) {
         const now = new Date();
@@ -137,6 +186,68 @@
         document.getElementById(fieldId).value = now.toISOString().slice(0, 16);
         triggerAutosave();
     }
+
+    // --- AJAX Company Creation ---
+    document.getElementById('btn-save-company').addEventListener('click', function() {
+        const name = document.getElementById('comp_name').value;
+        const email = document.getElementById('comp_email').value;
+        const contact = document.getElementById('comp_contact').value;
+        const address = document.getElementById('comp_address').value;
+        const errorDiv = document.getElementById('modal-error');
+
+        if(!name) {
+            errorDiv.innerText = "Company name is required.";
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        btn.innerText = "Saving...";
+
+        fetch("{% url 'company_create_ajax' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                name: name, email: email, contact_number: contact, address: address
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.success) {
+                // Add to select and select it
+                const select = document.getElementById('id_company');
+                const option = document.createElement('option');
+                option.value = data.id;
+                option.text = data.name;
+                select.add(option);
+                select.value = data.id;
+
+                // Hide modal & reset
+                const modalEl = document.getElementById('createCompanyModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                document.getElementById('ajaxCompanyForm').reset();
+                errorDiv.classList.add('d-none');
+
+                triggerAutosave();
+            } else {
+                errorDiv.innerText = data.message;
+                errorDiv.classList.remove('d-none');
+            }
+        })
+        .catch(err => {
+            errorDiv.innerText = "Network error.";
+            errorDiv.classList.remove('d-none');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerText = "Save Company";
+        });
+    });
 
     // --- Signature Pads ---
     function initPad(canvasId, dataFieldId) {
@@ -227,8 +338,6 @@
         statusEl.classList.remove('text-muted', 'text-success', 'text-danger');
 
         autosaveTimer = setTimeout(() => {
-            // Need to track which submit button was pressed so autosave doesn't trigger full validation.
-            // By default FormData won't include button values.
             const formData = new FormData(form);
             if (techPad && !techPad.isEmpty()) formData.set('tech_signature_data', techPad.toDataURL());
             if (clientPad && !clientPad.isEmpty()) formData.set('client_signature_data', clientPad.toDataURL());

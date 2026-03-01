@@ -47,7 +47,6 @@ def save_signature_image(base64_data):
         return None
 
 def setup_default_template_elements():
-    """Initializes default PDF template elements if none exist."""
     defaults = [
         {'element_name': 'header_logo', 'pos_x': 40, 'pos_y': 40, 'width': 120, 'height': 60, 'font_size': 0},
         {'element_name': 'company_info', 'pos_x': 200, 'pos_y': 40, 'width': 350, 'height': 60, 'font_size': 12},
@@ -59,7 +58,6 @@ def setup_default_template_elements():
         {'element_name': 'admin_notes', 'pos_x': 40, 'pos_y': 600, 'width': 515, 'height': 60, 'font_size': 10},
         {'element_name': 'signatures', 'pos_x': 40, 'pos_y': 680, 'width': 515, 'height': 100, 'font_size': 10},
     ]
-
     if not PDFTemplateElement.objects.exists():
         for d in defaults:
             PDFTemplateElement.objects.create(**d)
@@ -67,7 +65,6 @@ def setup_default_template_elements():
 # --- PDF GENERATOR (Bulletproof Flowable Version) ---
 
 def draw_background(c, doc):
-    """Hooks into SimpleDocTemplate to draw borders, watermarks, and page numbers."""
     c.saveState()
     width, height = A4
 
@@ -110,11 +107,9 @@ def draw_background(c, doc):
     c.restoreState()
 
 def build_pdf_elements(jobcard, is_dummy=False):
-    """Builds the list of Platypus Flowables."""
     elements = []
     styles = getSampleStyleSheet()
 
-    # Custom Styles
     style_normal = styles['Normal']
     style_bold = ParagraphStyle('Bold', parent=style_normal, fontName='Helvetica-Bold')
     style_title = ParagraphStyle('Title', parent=style_normal, fontName='Helvetica-Bold', fontSize=14, spaceAfter=6)
@@ -124,10 +119,8 @@ def build_pdf_elements(jobcard, is_dummy=False):
 
     settings_obj = GlobalSettings.objects.first()
 
-    # --- HEADER SECTION (Grid Layout via Table) ---
+    # --- HEADER SECTION ---
     header_data = []
-
-    # Row 1: Logo & Company Info
     logo_flowable = ""
     if settings_obj and settings_obj.company_logo:
         try:
@@ -138,7 +131,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
 
     c_name = settings_obj.company_name if settings_obj else "Company Name"
     if is_dummy and not settings_obj: c_name = "Acme Corp"
-
     c_addr = settings_obj.company_address if settings_obj else ""
     if is_dummy and not c_addr: c_addr = "123 Fake Street\nCity, Country"
 
@@ -160,7 +152,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
     ]
 
     header_data.append([logo_flowable, company_info, meta_info])
-
     header_table = Table(header_data, colWidths=[130, 220, 160])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -169,7 +160,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(header_table)
     elements.append(Spacer(1, 10))
 
-    # Row 2: Client, Tech, Times
+    # Details Row
     c_name = "Acme Corp" if is_dummy else jobcard.client_name
     if not is_dummy:
         if jobcard.company:
@@ -199,7 +190,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(details_table)
     elements.append(Spacer(1, 10))
 
-    # --- SUBHEADING ---
     elements.append(Paragraph("Job Details & Parts Used", style_subheading))
 
     # --- ITEMS TABLE ---
@@ -210,7 +200,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
             ("Diagnosed network issue", "Cat6 Cable", "10", "Jane Smith"),
             ("Replaced Switch", "24-Port Switch", "1", "Jane Smith"),
             ("Configured VLANs", "-", "1", "IT Manager"),
-        ] * 2 # Reduced for preview
+        ] * 2
         table_data.extend(dummy_items)
     else:
         for item in jobcard.items.all():
@@ -236,10 +226,8 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(Spacer(1, 20))
 
     # --- NOTES & SIGNATURES ---
-
     status = "INVOICED" if is_dummy else jobcard.status
 
-    # Tech Section (Always)
     tech_notes = "Replaced parts and tested." if is_dummy else jobcard.tech_notes
     tech_sig = None if is_dummy else jobcard.tech_signature
     client_sig = None if is_dummy else jobcard.client_signature
@@ -248,7 +236,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(Paragraph(escape(tech_notes) or "N/A", style_normal))
     elements.append(Spacer(1, 15))
 
-    # Signatures Grid
     def build_sig_block(title, name, img_field):
         block = [Paragraph(f"<b>{escape(title)}:</b> {escape(name)}", style_normal)]
         if img_field:
@@ -257,7 +244,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
             except:
                 block.append(Spacer(1, 40))
         else:
-            block.append(Spacer(1, 40)) # Empty box area
+            block.append(Spacer(1, 40))
         return block
 
     tech_block = build_sig_block("Tech Sign", tech_name, tech_sig)
@@ -278,7 +265,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
     elements.append(KeepTogether(sig_table))
     elements.append(Spacer(1, 20))
 
-    # Manager Section (Approved/Invoiced)
     if status in ['APPROVED', 'INVOICED']:
         manager_notes = "Approved. Good work." if is_dummy else jobcard.manager_notes
         manager_sig = None if is_dummy else jobcard.manager_signature
@@ -289,7 +275,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
         elements.append(Spacer(1, 15))
 
         man_block = build_sig_block("Manager Sign", manager_name, manager_sig)
-        man_table = Table([[man_block, ""]], colWidths=[255, 255]) # Align left
+        man_table = Table([[man_block, ""]], colWidths=[255, 255])
         man_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('BOX', (0,0), (0,0), 1, colors.HexColor('#ced4da')),
@@ -301,7 +287,6 @@ def build_pdf_elements(jobcard, is_dummy=False):
         elements.append(KeepTogether(man_table))
         elements.append(Spacer(1, 20))
 
-    # Admin Section (Invoiced)
     if status == 'INVOICED':
         admin_notes = "Invoiced #INV-999" if is_dummy else jobcard.admin_notes
         elements.append(Paragraph("Admin Notes:", style_bold))
@@ -387,26 +372,30 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
         action = self.request.POST.get('action')
 
-        # Strict Submission Validation
+        # Strict Validation Check
         if action == 'submit':
             valid = True
+
             if not form.cleaned_data.get('time_stop'):
                 messages.error(self.request, "You must Stop the timer before submitting.")
                 valid = False
 
             has_items = False
-            for item_form in items:
-                if item_form.cleaned_data and not item_form.cleaned_data.get('DELETE', False):
-                    if item_form.cleaned_data.get('description'):
-                        has_items = True
-                        break
+            if items.is_valid():
+                for item_form in items.cleaned_data:
+                    if item_form and not item_form.get('DELETE', False):
+                        if item_form.get('description'):
+                            has_items = True
+                            break
+            else:
+                valid = False # Formset itself is invalid
 
-            if not has_items:
+            if not has_items and valid:
                 messages.error(self.request, "You must add at least one Job Detail before submitting.")
                 valid = False
 
             if not valid:
-                return self.render_to_response(self.get_context_data(form=form))
+                return self.render_to_response(self.get_context_data(form=form, items=items))
 
         self.object = form.save(commit=False)
         self.object.technician = self.request.user
@@ -435,8 +424,6 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
-                    elif self.object.client_email:
-                        to_email = self.object.client_email
 
                     if to_email:
                         email = EmailMessage(
@@ -449,7 +436,7 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                         email.send(fail_silently=True)
                         messages.success(self.request, "Jobcard submitted and emailed!")
                     else:
-                        messages.success(self.request, "Jobcard submitted successfully! (No email sent, company/client email missing).")
+                        messages.success(self.request, "Jobcard submitted successfully! (No email sent, company email missing).")
                 except Exception as e:
                     messages.warning(self.request, f"Jobcard submitted but email/PDF failed: {e}")
             else:
@@ -457,7 +444,7 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
             return redirect(self.success_url)
         else:
-            return self.render_to_response(self.get_context_data(form=form))
+            return self.render_to_response(self.get_context_data(form=form, items=items))
 
 class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Jobcard
@@ -490,26 +477,30 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
         action = self.request.POST.get('action')
 
-        # Strict Submission Validation
+        # Strict Validation Check
         if action == 'submit':
             valid = True
+
             if not form.cleaned_data.get('time_stop'):
                 messages.error(self.request, "You must Stop the timer before submitting.")
                 valid = False
 
             has_items = False
-            for item_form in items:
-                if item_form.cleaned_data and not item_form.cleaned_data.get('DELETE', False):
-                    if item_form.cleaned_data.get('description'):
-                        has_items = True
-                        break
+            if items.is_valid():
+                for item_form in items.cleaned_data:
+                    if item_form and not item_form.get('DELETE', False):
+                        if item_form.get('description'):
+                            has_items = True
+                            break
+            else:
+                valid = False
 
-            if not has_items:
+            if not has_items and valid:
                 messages.error(self.request, "You must add at least one Job Detail before submitting.")
                 valid = False
 
             if not valid:
-                return self.render_to_response(self.get_context_data(form=form))
+                return self.render_to_response(self.get_context_data(form=form, items=items))
 
         self.object = form.save(commit=False)
 
@@ -535,8 +526,6 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
-                    elif self.object.client_email:
-                        to_email = self.object.client_email
 
                     if to_email:
                         email = EmailMessage(
@@ -557,7 +546,7 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
             return redirect(self.success_url)
         else:
-            return self.render_to_response(self.get_context_data(form=form))
+            return self.render_to_response(self.get_context_data(form=form, items=items))
 
 class JobcardAutosaveView(LoginRequiredMixin, View):
     def post(self, request, pk):
@@ -681,6 +670,24 @@ class CompanyCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
 
     def test_func(self):
         return self.request.user.is_manager() or self.request.user.is_superuser
+
+class CompanyCreateAJAXView(LoginRequiredMixin, View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            name = data.get('name')
+            if not name:
+                return JsonResponse({'success': False, 'message': 'Company name is required.'}, status=400)
+
+            company = Company.objects.create(
+                name=name,
+                address=data.get('address', ''),
+                contact_number=data.get('contact_number', ''),
+                email=data.get('email', '')
+            )
+            return JsonResponse({'success': True, 'id': company.id, 'name': company.name})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
 
 class SettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
     template_name = 'settings_form.html'

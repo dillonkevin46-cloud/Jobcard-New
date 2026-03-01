@@ -57,7 +57,7 @@ class JobcardForm(forms.ModelForm):
         fields = [
             'company', 'category', 'status',
             'time_start', 'time_stop',
-            'tech_name', 'client_name', 'client_email',
+            'tech_name', 'client_name',
             'tech_notes', 'manager_notes', 'admin_notes'
         ]
         widgets = {
@@ -71,27 +71,12 @@ class JobcardForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
 
-        # We only want strict company/client validation if they are trying to submit
-        # Autosave or drafting might be partially filled.
-        # Note: action is technically in request.POST, but in clean() we check data
-        # We'll rely mostly on the view for 'action' logic, but we can do basic cross-field checks here.
         company = cleaned_data.get("company")
         client_name = cleaned_data.get("client_name")
-        client_email = cleaned_data.get("client_email")
-
-        # If they filled client_name but forgot email, we can raise a soft validation
-        # or just strictly enforce if we are submitting. Since forms don't inherently know
-        # the submit button pressed (unless passed), we do the logic in the View or just enforce basic integrity here.
-        # Based on instructions: "If the user is submitting... enforce EITHER... If using client_name, encourage client_email."
-        # We will enforce the Company OR Client Name universally for data integrity,
-        # and enforce client_email if client_name is used.
 
         if self.data.get('action') == 'submit':
             if not company and not client_name:
                 raise ValidationError("You must select a Company or manually type a Client Name to submit.")
-
-            if client_name and not company and not client_email:
-                raise ValidationError({"client_email": "Please provide an email address so the client can receive a copy."})
 
         return cleaned_data
 
@@ -103,7 +88,7 @@ class JobcardForm(forms.ModelForm):
         if user and user.is_technician():
             self.fields['manager_notes'].disabled = True
             self.fields['admin_notes'].disabled = True
-            self.fields['status'].widget = forms.HiddenInput() # Tech submits via specific button logic usually, or we let them change status to SUBMITTED
+            self.fields['status'].widget = forms.HiddenInput()
 
         # Check existing signatures
         tech_sig_html = ""
@@ -115,11 +100,20 @@ class JobcardForm(forms.ModelForm):
              client_sig_html = f'<div class="mb-2"><img src="{self.instance.client_signature.url}" height="50" style="border:1px solid #ccc;"> <span class="text-muted small">Current Signature</span></div>'
 
         self.helper = FormHelper()
-        self.helper.form_tag = False # We will manage the form tag in the template for the whole page including formsets
+        self.helper.form_tag = False
         self.helper.form_class = 'jobcard-form'
         self.helper.layout = Layout(
             Row(
-                Column('company', css_class='form-group col-md-6 mb-3'),
+                Column(
+                    HTML("""
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="id_company" class="form-label mb-0">Company</label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary p-0 px-2" data-bs-toggle="modal" data-bs-target="#createCompanyModal" style="font-size: 0.75rem;"><i class="bi bi-plus"></i> Add New</button>
+                        </div>
+                    """),
+                    Field('company'),
+                    css_class='form-group col-md-6 mb-3'
+                ),
                 Column('category', css_class='form-group col-md-6 mb-3'),
                 css_class='form-row'
             ),
@@ -142,14 +136,14 @@ class JobcardForm(forms.ModelForm):
                 ),
                 css_class='form-row'
             ),
+            # Note: Items table will be injected here via template HTML, not crispy Layout
             'status',
-            HTML("<hr class='my-4'>"),
+            HTML("<hr class='my-4' id='tech-notes-divider'>"),
             'tech_notes',
             HTML("<hr class='my-4'>"),
             Row(
-                Column('tech_name', css_class='form-group col-md-4 mb-3'),
-                Column('client_name', css_class='form-group col-md-4 mb-3'),
-                Column('client_email', css_class='form-group col-md-4 mb-3'),
+                Column('tech_name', css_class='form-group col-md-6 mb-3'),
+                Column('client_name', css_class='form-group col-md-6 mb-3'),
             ),
             Row(
                  Column(
