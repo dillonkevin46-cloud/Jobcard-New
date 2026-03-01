@@ -361,14 +361,14 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
         if self.request.POST:
-            data['items'] = JobcardItemFormSet(self.request.POST)
+            data['item_formset'] = JobcardItemFormSet(self.request.POST)
         else:
-            data['items'] = JobcardItemFormSet()
+            data['item_formset'] = JobcardItemFormSet()
         return data
 
     def form_valid(self, form):
         context = self.get_context_data()
-        items = context['items']
+        items = context['item_formset']
 
         action = self.request.POST.get('action')
 
@@ -466,14 +466,14 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def get_context_data(self, **kwargs):
         data = super().get_context_data(**kwargs)
         if self.request.POST:
-            data['items'] = JobcardItemFormSet(self.request.POST, instance=self.object)
+            data['item_formset'] = JobcardItemFormSet(self.request.POST, instance=self.object)
         else:
-            data['items'] = JobcardItemFormSet(instance=self.object)
+            data['item_formset'] = JobcardItemFormSet(instance=self.object)
         return data
 
     def form_valid(self, form):
         context = self.get_context_data()
-        items = context['items']
+        items = context['item_formset']
 
         action = self.request.POST.get('action')
 

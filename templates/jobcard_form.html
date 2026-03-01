@@ -68,17 +68,17 @@
 
                 {% crispy form %}
 
-                <!-- Items Formset injected via JS logic into the designated spot (after Time sections) -->
-
-                {{ items.management_form }}
-
-                <div id="items-table-container" class="table-responsive rounded shadow-sm border border-light mb-4 mt-4 d-none">
-                    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+                <!-- Formset directly embedded inside the form tag to ensure it works correctly -->
+                <div id="items-table-container" class="table-responsive rounded shadow-sm border border-light mb-4 mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-2 bg-light p-2 border-bottom">
                         <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-tools me-2"></i>Job Details & Parts Used</h5>
                         <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-item-btn">
                             <i class="bi bi-plus"></i> Add Row
                         </button>
                     </div>
+
+                    {{ item_formset.management_form }}
+
                     <table class="table table-borderless align-middle mb-0" id="items-table">
                         <thead class="table-light text-muted small border-bottom">
                             <tr>
@@ -90,7 +90,7 @@
                             </tr>
                         </thead>
                         <tbody id="formset-body">
-                            {% for form in items %}
+                            {% for form in item_formset %}
                                 <tr class="formset-row border-bottom">
                                     {{ form.id }}
                                     <td class="table-input">{{ form.description|as_crispy_field }}</td>
@@ -98,7 +98,7 @@
                                     <td class="table-input">{{ form.qty|as_crispy_field }}</td>
                                     <td class="table-input">{{ form.person_helped|as_crispy_field }}</td>
                                     <td class="text-center align-middle">
-                                        {% if items.can_delete %}
+                                        {% if item_formset.can_delete %}
                                             <div class="form-check d-flex justify-content-center">
                                                 {{ form.DELETE }}
                                             </div>
@@ -169,13 +169,15 @@
 {% block extra_js %}
 <script>
     // --- Layout Reorder ---
-    // Move items table below time sections before tech notes
+    // The instructions say: "Move the 'Job Details' section to be immediately underneath 'Time Start / Stop' section. Tech Notes should remain at bottom."
+    // We achieve this safely by letting crispy render the main form, and then using JS to relocate our formset container
+    // precisely where we want it within the DOM to prevent styling layout breaks while keeping it inside the <form>.
     document.addEventListener("DOMContentLoaded", function() {
         const itemsContainer = document.getElementById('items-table-container');
-        const insertTarget = document.getElementById('div_id_status') ? document.getElementById('div_id_status').parentNode : null;
+        // Find the hr divider before tech notes and insert the table before it
+        const insertTarget = document.getElementById('tech-notes-divider');
         if(itemsContainer && insertTarget) {
             insertTarget.parentNode.insertBefore(itemsContainer, insertTarget);
-            itemsContainer.classList.remove('d-none');
         }
     });
 
@@ -218,7 +220,6 @@
         .then(response => response.json())
         .then(data => {
             if(data.success) {
-                // Add to select and select it
                 const select = document.getElementById('id_company');
                 const option = document.createElement('option');
                 option.value = data.id;
@@ -226,7 +227,6 @@
                 select.add(option);
                 select.value = data.id;
 
-                // Hide modal & reset
                 const modalEl = document.getElementById('createCompanyModal');
                 const modal = bootstrap.Modal.getInstance(modalEl);
                 modal.hide();
@@ -269,6 +269,9 @@
         });
 
         const hiddenInput = document.getElementById(dataFieldId);
+        if (hiddenInput && hiddenInput.value) {
+            pad.fromDataURL(hiddenInput.value);
+        }
 
         pad.addEventListener("endStroke", () => {
              if (hiddenInput) hiddenInput.value = pad.toDataURL();
@@ -293,7 +296,7 @@
         triggerAutosave();
     }
 
-    // --- Form Submission ---
+    // --- Form Submission Check ---
     document.getElementById('jobcardForm').addEventListener('submit', function(e) {
         if (techPad && !techPad.isEmpty()) {
             document.getElementById('id_tech_signature_data').value = techPad.toDataURL();
@@ -303,24 +306,37 @@
         }
     });
 
-    // --- Dynamic Formset ---
+    // --- Dynamic Formset Row Logic ---
     document.getElementById('add-item-btn').addEventListener('click', function() {
-        const formIdx = document.getElementById('id_items-TOTAL_FORMS').value;
-        const formTable = document.getElementById('formset-body');
-        const emptyRow = formTable.rows[0].cloneNode(true);
+        // Find management form data
+        const totalFormsInput = document.getElementById('id_items-TOTAL_FORMS');
+        const formIdx = parseInt(totalFormsInput.value);
+        const formTableBody = document.getElementById('formset-body');
 
+        // Clone the first row as a template
+        const emptyRow = formTableBody.rows[0].cloneNode(true);
+
+        // Update all name/id attributes using Regex replacement
         const regex = new RegExp(`items-(\\d+)-`, 'g');
         emptyRow.innerHTML = emptyRow.innerHTML.replace(regex, `items-${formIdx}-`);
 
-        const inputs = emptyRow.querySelectorAll('input');
+        // Clear out any user data from the cloned row
+        const inputs = emptyRow.querySelectorAll('input, select, textarea');
         inputs.forEach(input => {
-            if(input.type !== 'checkbox') input.value = '';
-            if(input.type === 'checkbox') input.checked = false;
-            if(input.name.endsWith('-id')) input.value = '';
+            if(input.type === 'checkbox') {
+                input.checked = false;
+            } else {
+                input.value = '';
+            }
+            // Critically ensure hidden IDs are blank for a new object
+            if(input.name.endsWith('-id')) {
+                input.value = '';
+            }
         });
 
-        formTable.appendChild(emptyRow);
-        document.getElementById('id_items-TOTAL_FORMS').value = parseInt(formIdx) + 1;
+        // Append and update count
+        formTableBody.appendChild(emptyRow);
+        totalFormsInput.value = formIdx + 1;
     });
 
     // --- Auto-Save ---
