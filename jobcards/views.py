@@ -2,6 +2,7 @@ import base64
 import uuid
 import io
 import json
+from html import escape
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -119,6 +120,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
     style_title = ParagraphStyle('Title', parent=style_normal, fontName='Helvetica-Bold', fontSize=14, spaceAfter=6)
     style_header_label = ParagraphStyle('HLabel', parent=style_normal, fontName='Helvetica-Bold', fontSize=10, textColor=colors.HexColor('#444444'))
     style_header_val = ParagraphStyle('HVal', parent=style_normal, fontName='Helvetica', fontSize=10)
+    style_subheading = ParagraphStyle('Subheading', parent=style_normal, fontName='Helvetica-Bold', fontSize=12, spaceAfter=10, spaceBefore=10)
 
     settings_obj = GlobalSettings.objects.first()
 
@@ -140,10 +142,10 @@ def build_pdf_elements(jobcard, is_dummy=False):
     c_addr = settings_obj.company_address if settings_obj else ""
     if is_dummy and not c_addr: c_addr = "123 Fake Street\nCity, Country"
 
-    company_info = [Paragraph(c_name, style_title)]
+    company_info = [Paragraph(escape(c_name), style_title)]
     for line in c_addr.split('\n'):
         if line.strip():
-            company_info.append(Paragraph(line.strip(), style_normal))
+            company_info.append(Paragraph(escape(line.strip()), style_normal))
 
     jc_num = "JC-PREVIEW-123" if is_dummy else jobcard.jobcard_number
     jc_date = "2023-10-27" if is_dummy else jobcard.created_at.strftime('%Y-%m-%d')
@@ -151,10 +153,10 @@ def build_pdf_elements(jobcard, is_dummy=False):
     jc_cat = "Call Out" if is_dummy else jobcard.get_category_display()
 
     meta_info = [
-        Paragraph(f"<b>Jobcard No:</b> {jc_num}", style_normal),
-        Paragraph(f"<b>Date:</b> {jc_date}", style_normal),
-        Paragraph(f"<b>Status:</b> {jc_stat}", style_normal),
-        Paragraph(f"<b>Category:</b> {jc_cat}", style_normal),
+        Paragraph(f"<b>Jobcard No:</b> {escape(jc_num)}", style_normal),
+        Paragraph(f"<b>Date:</b> {escape(jc_date)}", style_normal),
+        Paragraph(f"<b>Status:</b> {escape(jc_stat)}", style_normal),
+        Paragraph(f"<b>Category:</b> {escape(jc_cat)}", style_normal),
     ]
 
     header_data.append([logo_flowable, company_info, meta_info])
@@ -182,11 +184,11 @@ def build_pdf_elements(jobcard, is_dummy=False):
     stop_str = "2023-10-27 11:30" if is_dummy else (jobcard.time_stop.strftime('%Y-%m-%d %H:%M') if jobcard.time_stop else '-')
 
     details_data = [
-        [Paragraph("<b>Client Name:</b>", style_header_label), Paragraph(c_name, style_header_val),
-         Paragraph("<b>Start Time:</b>", style_header_label), Paragraph(start_str, style_header_val)],
+        [Paragraph("<b>Client Name:</b>", style_header_label), Paragraph(escape(c_name), style_header_val),
+         Paragraph("<b>Start Time:</b>", style_header_label), Paragraph(escape(start_str), style_header_val)],
 
-        [Paragraph("<b>Technician:</b>", style_header_label), Paragraph(tech_name, style_header_val),
-         Paragraph("<b>Stop Time:</b>", style_header_label), Paragraph(stop_str, style_header_val)]
+        [Paragraph("<b>Technician:</b>", style_header_label), Paragraph(escape(tech_name), style_header_val),
+         Paragraph("<b>Stop Time:</b>", style_header_label), Paragraph(escape(stop_str), style_header_val)]
     ]
 
     details_table = Table(details_data, colWidths=[80, 180, 80, 170])
@@ -195,25 +197,28 @@ def build_pdf_elements(jobcard, is_dummy=False):
         ('BOTTOMPADDING', (0,0), (-1,-1), 6),
     ]))
     elements.append(details_table)
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 10))
+
+    # --- SUBHEADING ---
+    elements.append(Paragraph("Job Details & Parts Used", style_subheading))
 
     # --- ITEMS TABLE ---
     table_data = [['Description', 'Parts Used', 'Qty', 'Person Helped']]
 
     if is_dummy:
         dummy_items = [
-            ("Diagnosed network issue", "Cat6 Cable", "10m", "Jane Smith"),
+            ("Diagnosed network issue", "Cat6 Cable", "10", "Jane Smith"),
             ("Replaced Switch", "24-Port Switch", "1", "Jane Smith"),
             ("Configured VLANs", "-", "1", "IT Manager"),
-        ] * 10 # Force multiple pages
+        ] * 2 # Reduced for preview
         table_data.extend(dummy_items)
     else:
         for item in jobcard.items.all():
             table_data.append([
-                Paragraph(item.description, style_normal),
-                Paragraph(item.parts_used, style_normal),
-                str(item.qty),
-                Paragraph(item.person_helped, style_normal)
+                Paragraph(escape(item.description), style_normal),
+                Paragraph(escape(item.parts_used), style_normal),
+                escape(str(item.qty)),
+                Paragraph(escape(item.person_helped), style_normal)
             ])
 
     items_table = Table(table_data, colWidths=[200, 160, 40, 110], repeatRows=1)
@@ -240,12 +245,12 @@ def build_pdf_elements(jobcard, is_dummy=False):
     client_sig = None if is_dummy else jobcard.client_signature
 
     elements.append(Paragraph("Technician Notes:", style_bold))
-    elements.append(Paragraph(tech_notes or "N/A", style_normal))
+    elements.append(Paragraph(escape(tech_notes) or "N/A", style_normal))
     elements.append(Spacer(1, 15))
 
     # Signatures Grid
     def build_sig_block(title, name, img_field):
-        block = [Paragraph(f"<b>{title}:</b> {name}", style_normal)]
+        block = [Paragraph(f"<b>{escape(title)}:</b> {escape(name)}", style_normal)]
         if img_field:
             try:
                 block.append(Image(img_field.path, width=120, height=40, kind='proportional'))
@@ -280,7 +285,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
         manager_name = "Boss Man" if is_dummy else jobcard.manager_name
 
         elements.append(Paragraph("Manager Notes:", style_bold))
-        elements.append(Paragraph(manager_notes or "N/A", style_normal))
+        elements.append(Paragraph(escape(manager_notes) or "N/A", style_normal))
         elements.append(Spacer(1, 15))
 
         man_block = build_sig_block("Manager Sign", manager_name, manager_sig)
@@ -300,7 +305,7 @@ def build_pdf_elements(jobcard, is_dummy=False):
     if status == 'INVOICED':
         admin_notes = "Invoiced #INV-999" if is_dummy else jobcard.admin_notes
         elements.append(Paragraph("Admin Notes:", style_bold))
-        elements.append(Paragraph(admin_notes or "N/A", style_normal))
+        elements.append(Paragraph(escape(admin_notes) or "N/A", style_normal))
 
     return elements
 
@@ -379,6 +384,30 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     def form_valid(self, form):
         context = self.get_context_data()
         items = context['items']
+
+        action = self.request.POST.get('action')
+
+        # Strict Submission Validation
+        if action == 'submit':
+            valid = True
+            if not form.cleaned_data.get('time_stop'):
+                messages.error(self.request, "You must Stop the timer before submitting.")
+                valid = False
+
+            has_items = False
+            for item_form in items:
+                if item_form.cleaned_data and not item_form.cleaned_data.get('DELETE', False):
+                    if item_form.cleaned_data.get('description'):
+                        has_items = True
+                        break
+
+            if not has_items:
+                messages.error(self.request, "You must add at least one Job Detail before submitting.")
+                valid = False
+
+            if not valid:
+                return self.render_to_response(self.get_context_data(form=form))
+
         self.object = form.save(commit=False)
         self.object.technician = self.request.user
 
@@ -390,7 +419,6 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
         if client_sig:
             self.object.client_signature = save_signature_image(client_sig)
 
-        action = self.request.POST.get('action')
         if action == 'submit':
             self.object.status = Jobcard.Status.SUBMITTED
 
@@ -407,6 +435,8 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
+                    elif self.object.client_email:
+                        to_email = self.object.client_email
 
                     if to_email:
                         email = EmailMessage(
@@ -419,7 +449,7 @@ class JobcardCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
                         email.send(fail_silently=True)
                         messages.success(self.request, "Jobcard submitted and emailed!")
                     else:
-                        messages.success(self.request, "Jobcard submitted successfully! (No email sent, company email missing).")
+                        messages.success(self.request, "Jobcard submitted successfully! (No email sent, company/client email missing).")
                 except Exception as e:
                     messages.warning(self.request, f"Jobcard submitted but email/PDF failed: {e}")
             else:
@@ -457,6 +487,30 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def form_valid(self, form):
         context = self.get_context_data()
         items = context['items']
+
+        action = self.request.POST.get('action')
+
+        # Strict Submission Validation
+        if action == 'submit':
+            valid = True
+            if not form.cleaned_data.get('time_stop'):
+                messages.error(self.request, "You must Stop the timer before submitting.")
+                valid = False
+
+            has_items = False
+            for item_form in items:
+                if item_form.cleaned_data and not item_form.cleaned_data.get('DELETE', False):
+                    if item_form.cleaned_data.get('description'):
+                        has_items = True
+                        break
+
+            if not has_items:
+                messages.error(self.request, "You must add at least one Job Detail before submitting.")
+                valid = False
+
+            if not valid:
+                return self.render_to_response(self.get_context_data(form=form))
+
         self.object = form.save(commit=False)
 
         tech_sig = form.cleaned_data.get('tech_signature_data')
@@ -467,7 +521,6 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         if client_sig:
             self.object.client_signature = save_signature_image(client_sig)
 
-        action = self.request.POST.get('action')
         if action == 'submit':
             self.object.status = Jobcard.Status.SUBMITTED
 
@@ -482,6 +535,8 @@ class JobcardUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                     to_email = None
                     if self.object.company and self.object.company.email:
                         to_email = self.object.company.email
+                    elif self.object.client_email:
+                        to_email = self.object.client_email
 
                     if to_email:
                         email = EmailMessage(
