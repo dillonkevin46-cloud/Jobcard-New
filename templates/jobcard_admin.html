@@ -7,14 +7,14 @@
 <div class="row justify-content-center">
     <div class="col-lg-10">
         <div class="card shadow">
-            <div class="card-header bg-info text-white">
-                <h4>Admin Invoice: {{ jobcard.jobcard_number }}</h4>
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Admin Invoice: {{ jobcard.jobcard_number }}</h4>
             </div>
             <div class="card-body">
                 <!-- Jobcard Details (Read Only) -->
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <p><strong>Company:</strong> {{ jobcard.company.name }}</p>
+                        <p><strong>Company:</strong> {{ jobcard.company.name|default:jobcard.client_name }}</p>
                         <p><strong>Technician:</strong> {{ jobcard.technician.get_full_name }}</p>
                     </div>
                     <div class="col-md-6">
@@ -78,9 +78,22 @@
 
                 <hr>
 
-                <!-- Admin Action Form -->
-                <h5>Admin Action</h5>
-                {% crispy form %}
+                <!-- Admin Action Form & Resend -->
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1 me-3">
+                        <h5>Admin Action</h5>
+                        {% crispy form %}
+                    </div>
+
+                    <div class="mt-4 pt-2">
+                         <form action="{% url 'resend_jobcard_email' jobcard.pk %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-primary" onclick="return confirm('Send Tech-only PDF to client?');">
+                                <i class="bi bi-envelope-check me-2"></i>Resend to Client (Tech Version)
+                            </button>
+                        </form>
+                    </div>
+                </div>
 
             </div>
         </div>

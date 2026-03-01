@@ -48,6 +48,11 @@
             text-align: center;
         }
 
+        #sidebar .sidebar-header img {
+            max-height: 50px;
+            max-width: 100%;
+        }
+
         #sidebar .nav-link {
             color: rgba(255,255,255,0.75);
             padding: 12px 20px;
@@ -145,7 +150,11 @@
         <!-- Sidebar -->
         <nav id="sidebar">
             <div class="sidebar-header">
-                <i class="bi bi-layers-half text-primary me-2"></i>Jobcard Sys
+                {% if global_settings and global_settings.company_logo %}
+                    <img src="{{ global_settings.company_logo.url }}" alt="Company Logo" class="img-fluid">
+                {% else %}
+                    <i class="bi bi-layers-half text-primary me-2"></i>Jobcard Sys
+                {% endif %}
             </div>
 
             <ul class="nav flex-column mb-auto mt-3">
@@ -184,14 +193,16 @@
                     {% if user.is_admin_role or user.is_superuser %}
                         <li class="nav-item">
                             <a class="nav-link d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminSubmenu" role="button" aria-expanded="false" aria-controls="adminSubmenu">
-                                <span><i class="bi bi-shield-lock"></i>Admin Panel</span>
+                                <span><i class="bi bi-shield-lock"></i>Admin</span>
                                 <i class="bi bi-chevron-down ms-auto" style="font-size: 0.8rem;"></i>
                             </a>
                             <div class="collapse" id="adminSubmenu">
                                 <ul class="nav flex-column dropdown-menu position-static d-block">
                                     <li><a class="dropdown-item" href="{% url 'dashboard' %}"><i class="bi bi-inboxes me-2"></i>Pending Invoices</a></li>
                                     <li><a class="dropdown-item" href="{% url 'admin_archive' %}"><i class="bi bi-archive me-2"></i>Jobcard Archive</a></li>
-                                    <li><a class="dropdown-item" href="/admin/" target="_blank"><i class="bi bi-database me-2"></i>Django Admin</a></li>
+                                    {% if user.is_superuser %}
+                                        <li><a class="dropdown-item" href="/admin/" target="_blank"><i class="bi bi-database me-2"></i>Django Admin</a></li>
+                                    {% endif %}
                                 </ul>
                             </div>
                         </li>
