@@ -227,6 +227,8 @@
         statusEl.classList.remove('text-muted', 'text-success', 'text-danger');
 
         autosaveTimer = setTimeout(() => {
+            // Need to track which submit button was pressed so autosave doesn't trigger full validation.
+            // By default FormData won't include button values.
             const formData = new FormData(form);
             if (techPad && !techPad.isEmpty()) formData.set('tech_signature_data', techPad.toDataURL());
             if (clientPad && !clientPad.isEmpty()) formData.set('client_signature_data', clientPad.toDataURL());

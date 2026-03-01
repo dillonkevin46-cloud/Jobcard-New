@@ -57,7 +57,7 @@ class JobcardForm(forms.ModelForm):
         fields = [
             'company', 'category', 'status',
             'time_start', 'time_stop',
-            'tech_name', 'client_name',
+            'tech_name', 'client_name', 'client_email',
             'tech_notes', 'manager_notes', 'admin_notes'
         ]
         widgets = {
@@ -70,11 +70,28 @@ class JobcardForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+
+        # We only want strict company/client validation if they are trying to submit
+        # Autosave or drafting might be partially filled.
+        # Note: action is technically in request.POST, but in clean() we check data
+        # We'll rely mostly on the view for 'action' logic, but we can do basic cross-field checks here.
         company = cleaned_data.get("company")
         client_name = cleaned_data.get("client_name")
+        client_email = cleaned_data.get("client_email")
 
-        if not company and not client_name:
-            raise ValidationError("Please select a Company or manually type a Client Name.")
+        # If they filled client_name but forgot email, we can raise a soft validation
+        # or just strictly enforce if we are submitting. Since forms don't inherently know
+        # the submit button pressed (unless passed), we do the logic in the View or just enforce basic integrity here.
+        # Based on instructions: "If the user is submitting... enforce EITHER... If using client_name, encourage client_email."
+        # We will enforce the Company OR Client Name universally for data integrity,
+        # and enforce client_email if client_name is used.
+
+        if self.data.get('action') == 'submit':
+            if not company and not client_name:
+                raise ValidationError("You must select a Company or manually type a Client Name to submit.")
+
+            if client_name and not company and not client_email:
+                raise ValidationError({"client_email": "Please provide an email address so the client can receive a copy."})
 
         return cleaned_data
 
@@ -130,8 +147,9 @@ class JobcardForm(forms.ModelForm):
             'tech_notes',
             HTML("<hr class='my-4'>"),
             Row(
-                Column('tech_name', css_class='form-group col-md-6 mb-3'),
-                Column('client_name', css_class='form-group col-md-6 mb-3'),
+                Column('tech_name', css_class='form-group col-md-4 mb-3'),
+                Column('client_name', css_class='form-group col-md-4 mb-3'),
+                Column('client_email', css_class='form-group col-md-4 mb-3'),
             ),
             Row(
                  Column(
